@@ -76,11 +76,14 @@ class Vector:
 
 
 class Camera:
-
+    height = 50
+    weight = 70
+    
     def __init__(self, pos: Point, look_at: Point, fov, draw_dostance):
         self.pos = pos
         self.look_at = look_at
-        self.fov = fov  # Vertical_fov = fov * (h / w)
+        self.fov = fov
+        vfov = fov * (Camera.height / Camera.weight)
         self.draw_dostance = draw_dostance
 
 
