@@ -22,7 +22,7 @@ class Point:
         if isinstance(arg, Point):
             return Point(self.c1 * arg.c1, self.c2 * arg.c2, self.c3 * arg.c3)
 
-        if isinstance(arg, int):
+        if isinstance(arg, int) or isinstance(arg, float):
             return Point(self.c1 * arg, self.c2 * arg, self.c3 * arg)
 
     def __truediv__(self, arg):
@@ -30,7 +30,7 @@ class Point:
         if isinstance(arg, Point):
             return Point(self.c1 / arg.c1, self.c2 / arg.c2, self.c3 / arg.c3)
 
-        if isinstance(arg, int):
+        if isinstance(arg, int) or isinstance(arg, float):
             return Point(self.c1 / arg, self.c2 / arg, self.c3 / arg)
 
 
@@ -57,7 +57,7 @@ class Vector:
         if isinstance(arg, Vector):  # Скалярное произведение
             return (self.pt.c1 * arg.pt.c1) + (self.pt.c2 * arg.pt.c2) + (self.pt.c3 * arg.pt.c3)
 
-        if isinstance(arg, int):  # Произведение вектора на число
+        if isinstance(arg, int) or isinstance(arg, float):  # Произведение вектора на число
             return Vector(Point(self.pt.c1 * arg, self.pt.c2 * arg, self.pt.c3 * arg))
 
     def __rmul__(self, num):  # Реализация коммутативности умножения
@@ -68,6 +68,12 @@ class Vector:
         d2 = self.vs.basis2 * (self.pt.c1 * vec.pt.c3 - self.pt.c3 * vec.pt.c1) * -1
         d3 = self.vs.basis3 * (self.pt.c1 * vec.pt.c2 - self.pt.c2 * vec.pt.c1)
         return d1 + d2 + d3
+
+    def __truediv__(self, num):
+        return Vector(self.pt / num)
+
+    def norm(self):
+        return Vector(self.pt / self.len())
 
 
 class VectorSpace:
@@ -89,12 +95,12 @@ class VectorSpace:
 
 class Camera:
 
-    def __init__(self, pos: Point, look_at: Point, fov, draw_dostance):
+    def __init__(self, pos: Point, look_at: Point, fov, draw_distance):
         self.pos = pos
         self.look_at = look_at
         self.fov = fov
         # vfov = fov * (h / w)
-        self.draw_dostance = draw_dostance
+        self.draw_distance = draw_distance
 
 
 class Object:
