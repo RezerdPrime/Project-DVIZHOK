@@ -1,9 +1,12 @@
 from Engine import *
 
-vs = VectorSpace(Point(0, 0, 0), Vector(Point(1, 2, 3)))
-Vector.vs = vs  # Передача векторного пространства в класс Вектор
+vec = Vector(Point(1, 2, 3))
+#print(vec.norm())
 
-print(Point(10, 9, 8).dist(vs.nullpoint))
-print(vs.basis1)
-print(Vector(Point(3, 5, 6)) ^ Vector(Point(11, -4, 6)))
+sharik = Sphere(vs.nullpoint, vs.basis1, radius = 2)
+#print(sharik.param['radius'])
 
+samolet = Plane(Point(1, 2, 3), vs.basis1)
+#print(samolet.contains(vs.nullpoint))
+
+print(samolet.intersect(vec, Point(10, 10, 10)))
