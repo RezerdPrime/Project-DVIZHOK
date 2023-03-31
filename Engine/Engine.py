@@ -41,6 +41,9 @@ class Point:
         if isinstance(arg, int) or isinstance(arg, float):
             return Point(self.c1 / arg, self.c2 / arg, self.c3 / arg)
 
+    def __neg__(self):
+        return Point(-self.c1, -self.c2, -self.c3)
+
 
 # =================================================================================================== #
 class Vector:
@@ -81,8 +84,12 @@ class Vector:
     def __truediv__(self, num):
         return Vector(self.pt / num)
 
+    def __neg__(self):
+        return self * -1
+
     def norm(self):
-        return Vector(self.pt / self.len())
+        if self.len() != 0: return Vector(self.pt / self.len())
+        else: return self
 
 
 # =================================================================================================== #
@@ -164,6 +171,9 @@ class Plane(Object):
         elif self.contains(vec_begin):
 
             zentrum_vec = Vector(self.pos - vec_begin)
+
+            if zentrum_vec.len() == 0: return self.pos
+
             projection = vec * zentrum_vec / zentrum_vec.len()
 
             if 0 <= projection <= 1:
@@ -177,7 +187,7 @@ class Plane(Object):
         return Vector.vs.nullpoint
 
     def nearest_point(self, *pts: Point):
-        dist_min = 10 ** 9
+        dist_min = 2 ** 63 - 1
         pt_min = Vector.vs.nullpoint
 
         for pt in pts:
@@ -229,10 +239,16 @@ class BoundedPlane(Plane):
 
         elif self.rotation * Vector(vec.pt - self.pos) == 0:
             rad_vec_1 = Vector(vec_begin - self.pos) # радиус вектор из центра плоскости к началу вектора
+
+            if rad_vec_1.len() == 0: return self.pos
+
             begin_vec1 = rad_vec_1 * self.vec1 / rad_vec_1.len() # проекции на направляющие вектора
             begin_vec2 = rad_vec_1 * self.vec2 / rad_vec_1.len()
 
             rad_vec_2 = rad_vec_1 + vec  # радиус вектор из центра плоскости к концу вектора
+
+            if rad_vec_2.len() == 0: return self.pos
+
             end_vec1 = rad_vec_2 * self.vec1 / rad_vec_2.len()  # проекции на направляющие вектора
             end_vec2 = rad_vec_2 * self.vec2 / rad_vec_2.len()
 
@@ -261,12 +277,145 @@ class BoundedPlane(Plane):
 
         return Vector.vs.nullpoint
 
+    def nearest_point(self, *pts: Point):
+        dist_min = 2 ** 63 - 1
+        pt_min = Vector.vs.nullpoint
+        dist = 0
+
+        for pt in pts:
+            rad_vec = Vector(pt - self.pos)
+
+            if rad_vec.len() == 0: return pt
+
+            proj1 = rad_vec * self.rotation / rad_vec.len()
+            proj2 = rad_vec * self.vec1 * self.param['delta_v1'] / rad_vec.len()
+            proj3 = rad_vec * self.vec2 * self.param['delta_v2'] / rad_vec.len()
+
+            sign = lambda x: 1 if x > 0 else -1
+
+            if abs(proj2) <= 1 and abs(proj3) <= 1:
+                dist = proj1 * self.rotation.len()
+
+            elif abs(proj2) > 1 and abs(proj3) > 1:
+                new_pr2 = proj2 - sign(proj2)
+                new_pr3 = proj3 - sign(proj3)
+
+                dist = self.rotation * -proj1 + self.vec1 * new_pr2 + self.vec2 * new_pr3 + Vector(pt)
+                dist = dist.len()
+
+            elif abs(proj2) > 1:
+                new_pr2 = proj2 - sign(proj2)
+
+                dist = self.rotation * -proj1 + self.vec1 * new_pr2 + Vector(pt)
+                dist = dist.len()
+
+            elif abs(proj3) > 1:
+                new_pr3 = proj3 - sign(proj3)
+
+                dist = self.rotation * -proj1 + self.vec2 * new_pr3 + Vector(pt)
+                dist = dist.len()
+
+            if dist < dist_min:
+                dist_min = dist
+                pt_min = pt
+
+        return pt_min
+
 
 # =================================================================================================== #
 class Sphere(Object):
 
+    def __init__(self, pos: Point, rotation: Vector, **parameter):
+        self.rd = parameter['radius']
+        self.rotation = rotation.norm() * self.rd
+
     def contains(self, pt):
-        return pt.c1 ** 2 + pt.c2 ** 2 + pt.c3 ** 2 <= self.param['radius']
+        return pt.c1 ** 2 + pt.c2 ** 2 + pt.c3 ** 2 <= self.rd
 
     def intersect(self, vec: Vector, vec_begin: Point = Vector.vs.nullpoint): # returns point
+
+        a = vec * vec
+        b = 2 * vec * Vector(vec_begin - self.pos)
+        c = Vector(self.pos) * Vector(self.pos) + \
+            Vector(vec_begin) * Vector(vec_begin) - \
+            2 * Vector(self.pos) * Vector(vec_begin) - self.rd ** 2
+
+        D = b ** 2 - 4 * a * c
+
+        if D > 0:
+            t1 = (-b + D ** 0.5) / (2 * a)
+            t2 = (-b - D ** 0.5) / (2 * a)
+
+            if 0 <= t1 <= 1: return vec.pt * t1 + vec_begin
+            elif 0 <= t2 <= 1: return vec.pt * t2 + vec_begin
+
+            if (0 <= t1) != (0 <= t2) and (t1 <= 1) != (t2 <= 1):
+                rad_vec = Vector(self.pos - vec_begin)
+
+                if rad_vec.len() == 0: return self.pos
+                proj = vec * rad_vec / rad_vec.len()
+
+                if 0 <= proj <= 1: return proj * vec.pt + vec_begin
+                elif proj > 1: return vec.pt
+                else: return vec_begin
+
+        elif D == 0:
+            t0 = -b / (2 * a)
+
+            if 0 <= t0 <= 1: return vec.pt * t0 + vec_begin
+
+        return Vector.vs.nullpoint
+
+
+    def nearest_point(self, *pts: Point):
+        dist_min = 2 ** 63 - 1
+        pt_min = Vector.vs.nullpoint
+
+        for pt in pts:
+            dist = self.pos.dist(pt)
+
+            if dist < dist_min:
+                dist_min = dist
+                pt_min = pt
+
+        return pt_min
+
+
+# =================================================================================================== #
+class Cube(Object):
+
+    def __init__(self, pos: Point, rotation: Vector, **params):
+        self.rot = rotation
+        self.pos = pos
+        self.limit = self.rot.len()
+        a = self.rot.pt.c1
+        b = self.rot.pt.c2
+
+        self.rot2 = Vector(Point(b, -a, 0)).norm() * self.limit
+        self.rot3 = (self.rot2 ^ self.rot).norm() * self.limit
+        self.edges = []
+
+        for vec in self.rot, self.rot2, self.rot3:
+            self.edges.append(BoundedPlane(vec.pt + self.pos, vec, delta_v1 = self.limit, delta_v2 = self.limit))
+            self.edges.append(BoundedPlane(-vec.pt - self.pos, -vec, delta_v1 = self.limit, delta_v2 = self.limit))
+
+    def contains(self, pt: Point):
+        rad_vec = Vector(pt - self.pos)
+
+        if rad_vec.len() == 0: return True
+
+        rot1_proj = self.rot * rad_vec / rad_vec.len()
+        rot2_proj = self.rot2 * rad_vec / rad_vec.len()
+        rot3_proj = self.rot3 * rad_vec / rad_vec.len()
+
+        return all(abs(pr) <= 1 for pr in (rot1_proj, rot2_proj, rot3_proj))
+
+    def intersect(self, vec: Vector, vec_begin: Point= Vector.vs.nullpoint):
+        # Искать пересечение с лучом, которого еще нет
         pass
+
+    def nearest_point(self, *pts: list[Point]):
+        pass
+    
+
+# =================================================================================================== #
