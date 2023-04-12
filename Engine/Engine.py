@@ -284,18 +284,18 @@ class Plane(Object):
         self.pos = pos
         self.rotation = rotation
 
-    def _upd(self):
+    def upd(self):
         self.pos = self.param.pos
         self.rotation = self.param.rotation
 
     def contains(self, pt): # A(x - x0) + B(y - y0) + C(z - z0) = 0
-        self._upd()
+        self.upd()
         return ( self.rotation.pt.c1 * (pt.c1 - self.pos.c1) +
                  self.rotation.pt.c2 * (pt.c2 - self.pos.c2) +
                  self.rotation.pt.c3 * (pt.c3 - self.pos.c3) == 0 )
 
     def intersect(self, ray: Ray): # returns float
-        self._upd()
+        self.upd()
 
         if self.rotation * ray.direct != 0 and not self.contains(ray.bpt): # Пересечение в одной точке
             t0 = (self.rotation * Vector(self.pos) - self.rotation * Vector(ray.bpt)) / (self.rotation * ray.direct)
@@ -309,7 +309,7 @@ class Plane(Object):
         #return Vector.vs.nullpoint
 
     def nearest_point(self, *pts: Point):
-        self._upd()
+        self.upd()
         dist_min = 2 ** 63 - 1
         pt_min = Vector.vs.nullpoint
 
@@ -343,14 +343,14 @@ class BoundedPlane(Plane):
         self.dv = dv
         self.du = du
 
-        if abs(self.rotation.pt.c1) < abs(self.rotation.pt.c2):
+        if abs(rotation.pt.c1) < abs(rotation.pt.c2):
             help_vec = Vector.vs.basis1
         else: help_vec = Vector.vs.basis2
 
         self.u = (self.rotation ^ help_vec).norm()
         self.v = (self.rotation ^ self.u).norm()
 
-        self.param = ParametersBoundedPlane(self.pos, self.rotation, self.u, self.v, self.du, self.dv)
+        self.param = ParametersBoundedPlane(pos, rotation, self.u, self.v, self.du, self.dv)
 
         self.pos = self.param.pos
         self.rotation = self.param.rotation
@@ -359,7 +359,17 @@ class BoundedPlane(Plane):
         self.dv = self.param.dv
         self.du = self.param.du
 
+    def upd(self):
+        self.pos = self.param.pos
+        self.rotation = self.param.rotation
+        self.u = self.param.u
+        self.v = self.param.v
+        self.dv = self.param.dv
+        self.du = self.param.du
+
     def in_boundaries(self, pt: Point):
+        self.upd()
+
         corner = self.u * self.du + self.v * self.dv
 
         delta_x = corner.pt.c1
@@ -371,36 +381,71 @@ class BoundedPlane(Plane):
              and abs(pt.c3 - self.pos.c3) <= delta_z #\
 
     def contains(self, pt): # returns bool
+        self.upd()
         if self.in_boundaries(pt):
             return self.rotation * Vector(pt - self.pos) == 0
 
-    def intersect(self, vec: Vector, vec_begin: Point = Vector.vs.nullpoint): # returns point\
+        return False
 
-        if self.rotation * vec != 0 and not self.contains(vec.pt):
-            t0 = (self.rotation * Vector(self.pos) - self.rotation * Vector(vec_begin)) / (self.rotation * vec)
+    def intersect(self, ray: Ray): # returns float\
+        self.upd()
 
-            if 0 <= t0 <= 1 and self.in_boundaries((vec * t0).point):
-                return vec.pt * t0 + vec_begin
+        if self.rotation * ray.direct != 0 and not self.contains(ray.direct.pt):
+            t0 = (self.rotation * Vector(self.pos) - self.rotation * Vector(ray.bpt)) / (self.rotation * ray.direct)
+            cond_pt = ray.direct.pt * t0 + ray.bpt
 
-        elif self.rotation * Vector(vec.pt - self.pos) == 0:
-            rad_vec_1 = Vector(vec_begin - self.pos) # радиус вектор из центра плоскости к началу вектора
+            if 0 <= t0 and self.in_boundaries(cond_pt):
+                return cond_pt.dist(ray.bpt)
 
-            if rad_vec_1.len() == 0: return self.pos
+        elif self.rotation * Vector(ray.direct.pt - self.pos) == 0 \
+                and self.rotation * Vector(ray.bpt - self.pos):
 
-            begin_vec1 = rad_vec_1 * self.u / rad_vec_1.len() # проекции на направляющие вектора
-            begin_vec2 = rad_vec_1 * self.v / rad_vec_1.len()
+            rad_vec_1 = Vector(ray.bpt - self.pos) # радиус вектор из центра плоскости к началу вектора
+            if rad_vec_1.len() == 0: return 0
 
-            rad_vec_2 = rad_vec_1 + vec  # радиус вектор из центра плоскости к концу вектора
+            begin_vec1 = rad_vec_1 * self.u * self.du / rad_vec_1.len() # проекции на направляющие вектора
+            begin_vec2 = rad_vec_1 * self.v * self.dv / rad_vec_1.len()
 
-            if rad_vec_2.len() == 0: return self.pos
+            if abs(begin_vec1) <= 1 and abs(begin_vec2) <= 1: return 0
 
-            end_vec1 = rad_vec_2 * self.u / rad_vec_2.len()  # проекции на направляющие вектора
-            end_vec2 = rad_vec_2 * self.v / rad_vec_2.len()
+            rad_vec_2 = rad_vec_1 + ray.direct  # радиус вектор из центра плоскости к концу вектора
 
-            if begin_vec1 > self.du and end_vec1 > self.du \
-               or begin_vec2 > self.dv \
-               and end_vec1 > self.dv: return Vector.vs.nullpoint # пересечения нет
+            if rad_vec_2.len() == 0:
 
+                if abs(begin_vec1) > 1 and abs(begin_vec2) > 1:
+
+                    if begin_vec1 > 1: begin_vec1 -= 1
+                    elif begin_vec1 < 1: begin_vec1 += 1
+
+                    if begin_vec2 > 1: begin_vec2 -= 1
+                    elif begin_vec2 < 1: begin_vec2 += 1
+
+                    return (begin_vec1 * self.du * self.u + begin_vec2 * self.dv * self.v).len()
+
+            end_vec1 = rad_vec_2 * self.u * self.du / rad_vec_2.len()  # проекции на направляющие вектора
+            end_vec2 = rad_vec_2 * self.v * self.dv / rad_vec_2.len()
+
+            def solution(ray1: Ray, ray2: Ray):
+                pass
+
+
+            if begin_vec1 > 1:
+                if self.u * ray.direct == 0:
+                    return
+
+            elif begin_vec1 < -1:
+                if self.u * ray.direct == 0:
+                    return
+
+            elif begin_vec2 > 1:
+                if self.v * ray.direct == 0:
+                    return
+
+            elif begin_vec2 < -1:
+                if self.v * ray.direct == 0:
+                    return
+
+            '''
             def limit(value, lim): # Ограничение вектора плоскостью
                 if value < -lim: value = -lim
                 elif value > lim: value = lim
@@ -416,13 +461,14 @@ class BoundedPlane(Plane):
             rad_vec_1 = self.u * begin_vec1 + self.v * begin_vec2 + Vector(self.pos)
             rad_vec_2 = self.u * end_vec1 + self.v * end_vec2 + Vector(self.pos)
 
-            result_vec = rad_vec_2 - rad_vec_1 - Vector(vec_begin)
+            result_vec = rad_vec_2 - rad_vec_1 - Vector(ray.bpt)
 
             return Plane(self.pos, self.rotation).intersect(result_vec, rad_vec_1.pt)
 
-        return Vector.vs.nullpoint
+        return Vector.vs.nullpoint '''
 
     def nearest_point(self, *pts: Point):
+        self.upd()
         dist_min = 2 ** 63 - 1
         pt_min = Vector.vs.nullpoint
         dist = 0
@@ -568,7 +614,5 @@ class Cube(Object):
     def scale(self, scaling_value):
         pass
 
-    
+
 # =================================================================================================== #
-# это блядский пиздец ребят, я хочу сдохнуть ёбаный в рот
-# Такого говна мы ещё не ели
