@@ -1,4 +1,5 @@
 import configparser
+import numpy as n
 import math
 
 
@@ -16,7 +17,7 @@ class Point:
     def __str__(self):  # Настройка фомата вывода
         return "({0},{1},{2})".format(self.c1, self.c2, self.c3)
 
-    def __add__(self, pt):  # Перегрузка операторов
+    def __add__(self, pt):  # Перегрузка операторовw
         return Point(self.c1 + pt.c1, self.c2 + pt.c2, self.c3 + pt.c3)
 
     def __sub__(self, pt):
@@ -109,28 +110,91 @@ class VectorSpace:
         VectorSpace.basis2 = dir2
         VectorSpace.basis3 = dir3
 
-vs = VectorSpace(Point(0, 0, 0), Vector(Point(1, 2, 3)))
+#vs = VectorSpace(Point(0, 0, 0), Vector(Point(1, 0, 0)))
 #vs = VectorSpace()
-Vector.vs = vs  # Передача векторного пространства в класс Вектор
+
+Vector.vs = VectorSpace()  # Передача векторного пространства в класс Вектор
+
+
+# =================================================================================================== #
+class Map:
+
+    def __init__(self):
+        self.list = []
+
+    def append(self, *obj):
+        self.list.extend(obj)
+
+    def __getitem__(self, index):
+        return self.list[index]
+
+    def __iter__(self):
+        return iter(self.list)
+
+
+# =================================================================================================== #
+class Ray:
+
+    def __init__(self, bpt: Point, direct: Vector):
+        self.bpt = bpt
+        self.direct = direct
+
+    def intersect(self, mappy: Map): # Schweintersekt
+        return [iobj.intersect(self) for iobj in mappy]
 
 
 # =================================================================================================== #
 class Camera:
+    config = configparser.ConfigParser()
+    config.read("config.cfg")
 
-    def __init__(self, pos: Point, look_at: Point, fov, draw_distance):
+    '''self.width = int(config['SCREEN']['width']) #self.hight
+    self.hight = int(config['SCREEN']['hight'])
+
+    self.ratio = self.hight / self.width'''
+
+    hight = int(config['SCREEN']['hight']) #int(config['SCREEN']['width'])
+    width = int(config['SCREEN']['width']) #int(config['SCREEN']['hight'])
+    ratio = width / hight
+
+    def __init__(self, pos: Point, look_dir: Vector, fov, draw_distance):
         self.pos = pos
-        self.look_at = look_at
+        self.look_dir = look_dir.norm()
         self.fov = fov
         self.draw_distance = draw_distance
 
-        config = configparser.ConfigParser()
-        config.read("config.cfg")
-        width = int(config['SCREEN']['width'])
-        hight = int(config['SCREEN']['hight'])
+        self.Vfov = self.fov / self.ratio
 
-        self.Vfov = fov * hight / width
+        self.screen = BoundedPlane(self.pos + self.look_dir.pt, self.look_dir, 1, self.ratio)
 
-    def sendrays(self, count): # returns list[Vector]
+    def sendrays(self) -> list[list[Ray]]:
+        rays = []
+
+        for i, tau in enumerate(n.linspace(-self.screen.du, self.screen.du, self.hight)): # width
+            rays.append([])
+
+            for s in n.linspace(-self.screen.dv, self.screen.dv, self.width): # hight
+                direction = Vector(self.screen.pos) + s * self.screen.v + tau * self.screen.u
+
+                rays[i].append(Ray(direction.pt - self.look_dir.pt, self.look_dir))
+
+        #print(*[rj.bpt for ri in rays for rj in ri])
+        return rays
+
+# =================================================================================================== #
+class Object:
+
+    def __init__(self, pos: Point, rotation: Vector):
+        self.pos = pos
+        self.rotation = rotation
+
+    def contains(self, pt: Point): # returns bool
+        return False
+
+    def intersect(self, ray: Ray): # returns float
+        return None
+
+    def nearest_point(self, *pts: list[Point]): # returns point
         pass
 
 
@@ -145,31 +209,43 @@ class Parameters:
         self.pos = self.pos + pt
 
     def rotate(self, c1_angle, c2_angle, c3_angle):
+        x_angle = c1_angle / 180 * math.pi
+        y_angle = c2_angle / 180 * math.pi
+        z_angle = c3_angle / 180 * math.pi
 
-        # сделать перевод в радианы
+        # Поворот вокруг оси Ox
+        y_old = self.rotation.pt.c2
+        z_old = self.rotation.pt.c3
+        self.rotation.pt.c2 = y_old * math.cos(x_angle) \
+                                   - z_old * math.sin(x_angle)
+        self.rotation.pt.c3 = y_old * math.sin(x_angle) \
+                                   + z_old * math.cos(x_angle)
 
-        c1_old = self.rotation.pt.c1
-        c2_old = self.rotation.pt.c2
-        c3_old = self.rotation.pt.c3
+        # Поворот вокруг оси Oy
+        x_old = self.rotation.pt.c1
+        z_old = self.rotation.pt.c3
+        self.rotation.pt.c1 = x_old * math.cos(y_angle) \
+                                   + z_old * math.sin(y_angle)
+        self.rotation.pt.c2 = x_old * -math.sin(y_angle) \
+                                   + z_old * math.cos(y_angle)
 
-        self.rotation.pt.c2 = c2_old * math.cos(c1_angle) - c3_old * math.sin(c1_angle)
-        self.rotation.pt.c3 = c2_old * math.sin(c1_angle) + c3_old * math.cos(c1_angle)
-
-        self.rotation.pt.c1 = c1_old * math.cos(c2_angle) + c3_old * math.sin(c2_angle)
-        self.rotation.pt.c3 = -c1_old * math.sin(c2_angle) + c3_old * math.cos(c2_angle)
-
-        self.rotation.pt.c1 = c1_old * math.cos(c3_angle) - c2_old * math.sin(c3_angle)
-        self.rotation.pt.c2 = c1_old * math.sin(c3_angle) + c2_old * math.cos(c3_angle)
+        # Поворот вокруг оси Oz
+        x_old = self.rotation.pt.c1
+        y_old = self.rotation.pt.c2
+        self.rotation.pt.c1 = x_old * math.cos(z_angle) \
+                                   - y_old * math.sin(z_angle)
+        self.rotation.pt.c2 = x_old * math.sin(z_angle) \
+                                   + y_old * math.cos(z_angle)
 
     def scale(self, scaling_value):
         pass
 
 
 # =================================================================================================== #
-class ParametersPlane(Parameters):
+'''class ParametersPlane(Parameters):
     def __init__(self, pos: Point, rotation: Vector):
         self.pos = pos
-        self.rotation = rotation
+        self.rotation = rotation'''
 
 
 # =================================================================================================== #
@@ -189,7 +265,7 @@ class ParametersBoundedPlane(Parameters):
 
 # =================================================================================================== #
 class ParametersSphere(Parameters):
-    def __init__(self, pos: Point, rotation: Vector, *, radius):
+    def __init__(self, pos: Point, rotation: Vector, radius):
         self.pos = pos
         self.rotation = rotation
         self.rd = radius
@@ -229,60 +305,14 @@ class ParametersCube(Parameters):
 
     #def rotate(self, c1_angle, c2_angle, c3_angle):
 
-
-# =================================================================================================== #
-class Map:
-
-    def __init__(self):
-        self.list = []
-
-    def append(self, *obj):
-        self.list.extend(obj)
-
-    def __getitem__(self, index):
-        return self.list[index]
-
-    def __iter__(self):
-        return iter(self.list)
-
-
-# =================================================================================================== #
-class Ray:
-
-    def __init__(self, bpt: Point, direct: Vector):
-        self.bpt = bpt
-        self.direct = direct
-
-    def intersect(self, mappy: Map):
-        return [iobj.intersect(self) for iobj in mappy]
-
-
-# =================================================================================================== #
-class Object:
-
-    def __init__(self, pos: Point, rotation: Vector, *parameter):
-        self.pos = pos
-        self.rotation = rotation
-        self.param = parameter
-
-    def contains(self, pt: Point): # returns bool
-        pass
-
-    def intersect(self, ray: Ray): # returns float
-        pass
-
-    def nearest_point(self, *pts: list[Point]): # returns point
-        pass
-
-
 # =================================================================================================== #
 class Plane(Object):
 
     def __init__(self, pos: Point, rotation: Vector):
 
-        self.param = ParametersPlane(pos, rotation)
         self.pos = pos
         self.rotation = rotation
+        self.param = Parameters(self.pos, self.rotation)
 
     def upd(self):
         self.pos = self.param.pos
@@ -290,17 +320,15 @@ class Plane(Object):
 
     def contains(self, pt): # A(x - x0) + B(y - y0) + C(z - z0) = 0
         self.upd()
-        return ( self.rotation.pt.c1 * (pt.c1 - self.pos.c1) +
-                 self.rotation.pt.c2 * (pt.c2 - self.pos.c2) +
-                 self.rotation.pt.c3 * (pt.c3 - self.pos.c3) == 0 )
+        return abs(self.rotation * Vector(pt - self.pos)) < 1e-6
 
     def intersect(self, ray: Ray): # returns float
         self.upd()
 
-        if self.rotation * ray.direct != 0 and not self.contains(ray.bpt): # Пересечение в одной точке
+        if self.rotation * ray.direct != 0 and not (self.contains(ray.bpt) and self.contains(ray.direct.pt)): # Пересечение в одной точке
             t0 = (self.rotation * Vector(self.pos) - self.rotation * Vector(ray.bpt)) / (self.rotation * ray.direct)
 
-            if 0 <= t0:
+            if 0 >= t0:
                 #return (t0 * ray.direct.pt + ray.bpt).dist(ray.bpt)
                 return t0 * ray.direct.len()
 
@@ -342,22 +370,27 @@ class BoundedPlane(Plane):
 
         self.dv = dv
         self.du = du
+        self.rotation = rotation
+        self.pos = pos
 
-        if abs(rotation.pt.c1) < abs(rotation.pt.c2):
+        if abs(self.rotation.pt.c1) < abs(self.rotation.pt.c2):
             help_vec = Vector.vs.basis1
         else: help_vec = Vector.vs.basis2
 
+        if self.rotation.pt == help_vec.pt:
+            help_vec = Vector.vs.basis3
+
         self.u = (self.rotation ^ help_vec).norm()
-        self.v = (self.rotation ^ self.u).norm()
+        self.v = (self.u ^ self.rotation).norm()
 
-        self.param = ParametersBoundedPlane(pos, rotation, self.u, self.v, self.du, self.dv)
+        self.param = ParametersBoundedPlane(self.pos, self.rotation, self.u, self.v, self.du, self.dv)
 
-        self.pos = self.param.pos
+        '''self.pos = self.param.pos
         self.rotation = self.param.rotation
         self.u = self.param.u
         self.v = self.param.v
         self.dv = self.param.dv
-        self.du = self.param.du
+        self.du = self.param.du'''
 
     def upd(self):
         self.pos = self.param.pos
@@ -376,96 +409,132 @@ class BoundedPlane(Plane):
         delta_y = corner.pt.c2
         delta_z = corner.pt.c3
 
-        return abs(pt.c1 - self.pos.c1) <= delta_x  \
-            and abs(pt.c2 - self.pos.c2) <= delta_y  \
-             and abs(pt.c3 - self.pos.c3) <= delta_z #\
+        return abs(pt.c1 - self.pos.c1) <= abs(delta_x)  \
+            and abs(pt.c2 - self.pos.c2) <= abs(delta_y)  \
+             and abs(pt.c3 - self.pos.c3) <= abs(delta_z) #\
 
     def contains(self, pt): # returns bool
         self.upd()
         if self.in_boundaries(pt):
-            return self.rotation * Vector(pt - self.pos) == 0
+            return abs(self.rotation * Vector(pt - self.pos)) < 0
 
         return False
 
     def intersect(self, ray: Ray): # returns float\
         self.upd()
 
-        if self.rotation * ray.direct != 0 and not self.contains(ray.direct.pt):
-            t0 = (self.rotation * Vector(self.pos) - self.rotation * Vector(ray.bpt)) / (self.rotation * ray.direct)
-            cond_pt = ray.direct.pt * t0 + ray.bpt
+        #print(self.dv * self.v.pt + self.pos, type(self.dv * self.v.pt + self.pos))
 
-            if 0 <= t0 and self.in_boundaries(cond_pt):
-                return cond_pt.dist(ray.bpt)
+        if self.rotation * ray.direct != 0 and \
+                not (self.rotation * Vector(ray.bpt - self.pos) == 0
+                     and self.rotation * Vector(ray.direct.pt + ray.bpt
+                                           - self.pos) == 0):
+            if self.contains(ray.bpt):
+                return 0
 
-        elif self.rotation * Vector(ray.direct.pt - self.pos) == 0 \
-                and self.rotation * Vector(ray.bpt - self.pos):
+            t0 = (self.rotation * Vector(self.pos) -
+                  self.rotation * Vector(ray.bpt)) / (self.rotation * ray.direct)
+            int_pt = ray.direct.pt * t0 + ray.bpt
+            if t0 >= 0 and self.in_boundaries(int_pt):
+                return int_pt.dist(ray.bpt)
 
-            rad_vec_1 = Vector(ray.bpt - self.pos) # радиус вектор из центра плоскости к началу вектора
-            if rad_vec_1.len() == 0: return 0
+        elif self.rotation * Vector(
+                ray.direct.pt + ray.bpt - self.pos) == 0:
+            # Проекции вектора из точки центра плоскости
+            # к точке начала вектора v на направляющие вектора плоскости
+            r_begin = Vector(ray.bpt - self.pos)
+            # Если начало вектора совпадает с центром плоскости
+            if r_begin.len() == 0:
+                return 0
 
-            begin_vec1 = rad_vec_1 * self.u * self.du / rad_vec_1.len() # проекции на направляющие вектора
-            begin_vec2 = rad_vec_1 * self.v * self.dv / rad_vec_1.len()
+            begin_pr1 = r_begin * self.u * self.du / r_begin.len()
+            begin_pr2 = r_begin * self.v * self.dv / r_begin.len()
+            if abs(begin_pr1) <= 1 and abs(begin_pr2) <= 1:
+                return 0
 
-            if abs(begin_vec1) <= 1 and abs(begin_vec2) <= 1: return 0
+            # Проекции вектора из точки центра плоскости
+            # к точке конца вектора v на направляющие вектора плоскости
+            r_end = r_begin + ray.direct
+            if r_end.len() == 0:
+                if abs(begin_pr1) > 1 or abs(begin_pr2) > 1:
+                    if begin_pr1 > 1:
+                        begin_pr1 -= 1
+                    elif begin_pr1 < 1:
+                        begin_pr1 += 1
 
-            rad_vec_2 = rad_vec_1 + ray.direct  # радиус вектор из центра плоскости к концу вектора
+                    if begin_pr2 > 1:
+                        begin_pr2 -= 1
+                    elif begin_pr2 < 1:
+                        begin_pr2 += 1
 
-            if rad_vec_2.len() == 0:
+                    return begin_pr1 * self.du + begin_pr2 * self.dv
 
-                if abs(begin_vec1) > 1 and abs(begin_vec2) > 1:
+                return 0
 
-                    if begin_vec1 > 1: begin_vec1 -= 1
-                    elif begin_vec1 < 1: begin_vec1 += 1
+            def find_point(ray1: Ray, ray2: Ray):
 
-                    if begin_vec2 > 1: begin_vec2 -= 1
-                    elif begin_vec2 < 1: begin_vec2 += 1
+                if ray1.direct.pt.c1 != 0:
+                    x0 = ray1.bpt.c1
+                    y0 = ray1.bpt.c2
+                    xr = ray2.bpt.c1
+                    yr = ray2.bpt.c2
+                    vx = ray1.direct.pt.c1
+                    vy = ray1.direct.pt.c2
+                    ux = ray2.direct.pt.c1
+                    uy = ray2.direct.pt.c2
+                    t1 = ((x0 - xr) * vy / vx + yr - y0) \
+                         / (uy - ux * vy / vx)
+                    s1 = (t1 * ux + x0 - xr) / vx
+                    return t1, s1
+                elif ray1.direct.pt.c2 != 0:
+                    x0 = ray1.bpt.c1
+                    y0 = ray1.bpt.c2
+                    xr = ray2.bpt.c1
+                    yr = ray2.bpt.c2
+                    vx = ray1.direct.pt.c1
+                    vy = ray1.direct.pt.c2
+                    ux = ray2.direct.pt.c1
+                    uy = ray2.direct.pt.c2
+                    t1 = ((y0 - yr) * vx / vy + xr - x0) \
+                         / (ux - uy * vx / vy)
+                    s1 = (t0 * uy + y0 - yr) / vy
+                    return t1, s1
+                elif ray1.direct.pt.c3 != 0:
+                    z0 = ray1.bpt.c3
+                    y0 = ray1.bpt.c2
+                    zr = ray2.bpt.c3
+                    yr = ray2.bpt.c2
+                    vz = ray1.direct.pt.c3
+                    vy = ray1.direct.pt.c2
+                    uz = ray2.direct.pt.c3
+                    uy = ray2.direct.pt.c2
+                    t1 = ((z0 - zr) * vy / vz + yr - y0) / (
+                            uy - uz * vy / vz)
+                    s1 = (t0 * uz + z0 - zr) / vz
+                    return t1, s1
 
-                    return (begin_vec1 * self.du * self.u + begin_vec2 * self.dv * self.v).len()
-
-            end_vec1 = rad_vec_2 * self.u * self.du / rad_vec_2.len()  # проекции на направляющие вектора
-            end_vec2 = rad_vec_2 * self.v * self.dv / rad_vec_2.len()
-
-            def solution(ray1: Ray, ray2: Ray):
-                pass
-
-
-            if begin_vec1 > 1:
+            if abs(begin_pr1) > 1:
                 if self.u * ray.direct == 0:
                     return
 
-            elif begin_vec1 < -1:
-                if self.u * ray.direct == 0:
-                    return
+                sign = 1 if begin_pr1 > 1 else -1
+                t0, s0 = find_point(
+                    Ray(sign * self.du * self.u.pt + self.pos,
+                        self.dv * self.v), ray)
+                if s0 >= 0 and abs(t0) <= 1:
+                    return s0 * ray.direct.len()
 
-            elif begin_vec2 > 1:
+            elif abs(begin_pr2) > 1:
                 if self.v * ray.direct == 0:
                     return
 
-            elif begin_vec2 < -1:
-                if self.v * ray.direct == 0:
-                    return
+                sign = 1 if begin_pr2 > 1 else -1
 
-            '''
-            def limit(value, lim): # Ограничение вектора плоскостью
-                if value < -lim: value = -lim
-                elif value > lim: value = lim
-
-                return value
-
-            begin_vec1 = limit(begin_vec1, self.du)
-            begin_vec2 = limit(begin_vec2, self.dv)
-
-            end_vec1 = limit(end_vec1, self.du)
-            end_vec2 = limit(end_vec2, self.dv)
-
-            rad_vec_1 = self.u * begin_vec1 + self.v * begin_vec2 + Vector(self.pos)
-            rad_vec_2 = self.u * end_vec1 + self.v * end_vec2 + Vector(self.pos)
-
-            result_vec = rad_vec_2 - rad_vec_1 - Vector(ray.bpt)
-
-            return Plane(self.pos, self.rotation).intersect(result_vec, rad_vec_1.pt)
-
-        return Vector.vs.nullpoint '''
+                t0, s0 = find_point(
+                    Ray(sign * self.dv * self.v.pt + self.pos,
+                        self.du * self.u), ray)
+                if s0 >= 0 and abs(t0) <= 1:
+                    return s0 * ray.direct.len()
 
     def nearest_point(self, *pts: Point):
         self.upd()
@@ -516,46 +585,45 @@ class BoundedPlane(Plane):
 # =================================================================================================== #
 class Sphere(Object):
 
-    def __init__(self, pos: Point, rotation: Vector, *, radius):
+    def __init__(self, pos: Point, rotation: Vector, radius):
         self.rd = radius
+        self.pos = pos
         self.rotation = rotation.norm() * self.rd
+        self.param = ParametersSphere(self.pos, self.rotation, radius)
+
+    def upd(self):
+        self.pos = self.param.pos
+        self.rotation = self.param.rotation
+        self.rd = self.param.rd
 
     def contains(self, pt):
-        return pt.c1 ** 2 + pt.c2 ** 2 + pt.c3 ** 2 <= self.rd
+        self.upd()
+        return self.pos.dist(pt) - self.rd <= 1e-6
+        #return pt.c1 ** 2 + pt.c2 ** 2 + pt.c3 ** 2 <= self.rd
 
-    def intersect(self, vec: Vector, vec_begin: Point = Vector.vs.nullpoint): # returns point
+    def intersect(self, ray: Ray): # returns float
+        self.upd()
 
-        a = vec * vec
-        b = 2 * vec * Vector(vec_begin - self.pos)
+        a = ray.direct * ray.direct
+        b = 2 * ray.direct * Vector(ray.bpt - self.pos)
         c = Vector(self.pos) * Vector(self.pos) + \
-            Vector(vec_begin) * Vector(vec_begin) - \
-            2 * Vector(self.pos) * Vector(vec_begin) - self.rd ** 2
+            Vector(ray.bpt) * Vector(ray.bpt) \
+            - 2 * Vector(self.pos) * Vector(ray.bpt) - self.rd ** 2
 
-        D = b ** 2 - 4 * a * c
+        d = b ** 2 - 4 * a * c
+        if d > 0:
+            t1 = (-b + math.sqrt(d)) / (2 * a)
+            t2 = (-b - math.sqrt(d)) / (2 * a)
+            # Смотрим пересечения с поверхностью сферы
+            if t2 < 0 <= t1 or 0 < t1 <= t2:
+                return t1 * ray.direct.len()
+            elif t1< 0 <= t2 or 0 < t2 <= t1:
+                return t1 * ray.direct.len()
 
-        if D > 0:
-            t1 = (-b + D ** 0.5) / (2 * a)
-            t2 = (-b - D ** 0.5) / (2 * a)
-
-            if 0 <= t1 <= 1: return vec.pt * t1 + vec_begin
-            elif 0 <= t2 <= 1: return vec.pt * t2 + vec_begin
-
-            if (0 <= t1) != (0 <= t2) and (t1 <= 1) != (t2 <= 1):
-                rad_vec = Vector(self.pos - vec_begin)
-
-                if rad_vec.len() == 0: return self.pos
-                proj = vec * rad_vec / rad_vec.len()
-
-                if 0 <= proj <= 1: return proj * vec.pt + vec_begin
-                elif proj > 1: return vec.pt
-                else: return vec_begin
-
-        elif D == 0:
+        elif d == 0:
             t0 = -b / (2 * a)
-
-            if 0 <= t0 <= 1: return vec.pt * t0 + vec_begin
-
-        return Vector.vs.nullpoint
+            if t0 >= 0:
+                return t0 * ray.direct.len()
 
 
     def nearest_point(self, *pts: Point):
@@ -564,6 +632,9 @@ class Sphere(Object):
 
         for pt in pts:
             dist = self.pos.dist(pt)
+
+            if dist == 0:
+                return pt
 
             if dist < dist_min:
                 dist_min = dist
@@ -582,15 +653,33 @@ class Cube(Object):
         a = self.rot.pt.c1
         b = self.rot.pt.c2
 
-        self.rot2 = Vector(Point(b, -a, 0)).norm() * self.limit
-        self.rot3 = (self.rot2 ^ self.rot).norm() * self.limit
+        '''self.rot2 = Vector(Point(b, -a, 0)).norm() * self.limit
+        self.rot3 = (self.rot2 ^ self.rot).norm() * self.limit'''
+
+        if abs(self.rot.pt.c1) < abs(self.rot.pt.c2):
+            x_dir = Vector.vs.basis1
+        else: x_dir = Vector.vs.basis1
+
+        self.rot2 = (self.rot ^ x_dir).norm()
+        self.rot3 = (self.rot2 ^ x_dir).norm()
         self.edges = []
 
         for vec in self.rot, self.rot2, self.rot3:
             self.edges.append(BoundedPlane(vec.pt + self.pos, vec, self.limit, self.limit))
             self.edges.append(BoundedPlane(-vec.pt - self.pos, -vec, self.limit, self.limit))
 
+        self.param = ParametersCube(self.pos, self.limit, [self.rot, self.rot2, self.rot3], self.edges)
+
+    def upd(self):
+        self.pos = self.param.pos
+        self.rot = self.param.rot
+        self.rot2 = self.param.rot2
+        self.rot3 = self.param.rot3
+        self.limit = self.param.limit
+        self.edges = self.param.edges
+
     def contains(self, pt: Point):
+        self.upd()
         rad_vec = Vector(pt - self.pos)
 
         if rad_vec.len() == 0: return True
@@ -599,20 +688,122 @@ class Cube(Object):
         rot2_proj = self.rot2 * rad_vec / rad_vec.len()
         rot3_proj = self.rot3 * rad_vec / rad_vec.len()
 
-        return all(abs(pr) <= 1 for pr in (rot1_proj, rot2_proj, rot3_proj))
+        return all(abs(abs(pr) - 1) <= 1e-6 for pr in (rot1_proj, rot2_proj, rot3_proj))
 
-    def intersect(self, vec: Vector, vec_begin: Point= Vector.vs.nullpoint):
-        # Искать пересечение с лучом, которого еще нет
-        pass
+    def intersect(self, ray: Ray):
+        self.upd()
 
-    def nearest_point(self, *pts: list[Point]):
-        pass
+        int_pts = []
+        for edge in self.edges:
+            r = edge.intersect(ray)
+            if r is not None:
+                int_pts.append(r)
 
-    def rotate(self, c1_angle, c2_angle, c3_angle):
-        pass
+        if len(int_pts):
+            return min(int_pts)
 
-    def scale(self, scaling_value):
-        pass
+    def nearest_point(self, *pts: Point):
+        self.upd()
 
+        r_min = 2 ** 63 - 1
+        min_pt = Vector.vs.nullpoint
+        r = 0
+        nearest = [edge.nearest_point(*pts) for edge in self.edges]
+        print(*nearest)
+
+        for i, near_pt in enumerate(nearest):
+            r_begin = Vector(near_pt - self.edges[i].pos)
+            # Если начало вектора совпадает с центром плоскости
+            if r_begin.len() == 0:
+                return near_pt
+
+            projection1 = r_begin * self.edges[i].rotation / r_begin.len()
+            projection2 = r_begin * self.edges[i].u * self.edges[i].du \
+                          / r_begin.len()
+            projection3 = r_begin * self.edges[i].v * self.edges[i].dv \
+                          / r_begin.len()
+
+            sign = lambda x: 1 if x > 0 else -1
+            if abs(projection2) <= 1 and abs(projection3) <= 1:
+                r = projection1 * self.edges[i].rotation.len()
+
+            elif abs(projection2) > 1 and abs(projection3) > 1:
+                proj2 = projection2 - sign(projection2)
+                proj3 = projection3 - sign(projection3)
+
+                r = self.edges[i].rotation * -projection1 \
+                    + self.edges[i].u * proj2 \
+                    + self.edges[i].v * proj3 + Vector(near_pt)
+                r = r.len()
+
+            elif abs(projection2) > 1:
+                proj2 = projection2 - sign(projection2)
+                r = self.edges[i].rotation * -projection1 \
+                    + self.edges[i].u * proj2 + Vector(near_pt)
+                r = r.len()
+
+            elif abs(projection3) > 1:
+                proj3 = projection3 - sign(projection3)
+                r = self.edges[i].rotation * -projection1 \
+                    + self.edges[i].v * proj3 + Vector(near_pt)
+                r = r.len()
+
+            if r < r_min:
+                r_min = r
+                min_pt = near_pt
+
+        return min_pt
+
+
+# =================================================================================================== #
+symbols = (' ', '.', ',', '-', '+', '=', '*', '#', '%', '&', '$', '@')
+#symbols = (' ', '.', ',', '-', '+', '=', '*', '#', '%', '&')
+
+class Canvas:
+
+    def __init__(self, map_: Map, cam: Camera):
+        self.map = map_
+        self.cam = cam
+
+    def update(self):
+        rays = self.cam.sendrays()
+        dist_matrix = []
+
+        for i in range(self.cam.hight): # width
+            dist_matrix.append([])
+
+            for j in range(self.cam.width): # hight
+                #print(len(rays[i]))
+                distances = rays[i][j].intersect(self.map)
+
+                if all(d is None or d > self.cam.draw_distance
+                       for d in distances):
+                    dist_matrix[i].append(None)
+
+                else:
+                    dist_matrix[i].append(
+                        min(filter(lambda x: x is not None, distances)))
+
+        return dist_matrix
+
+
+# =================================================================================================== #
+class Console(Canvas):
+
+    def draw(self):
+        dist_matrix = self.update()
+
+        for y in range(len(dist_matrix)):
+
+            for x in range(len(dist_matrix[y])):
+                if dist_matrix[y][x] is None:
+                    print(symbols[0], end='')
+                    continue
+
+                gradient = dist_matrix[y][x] / self.cam.draw_distance * (len(symbols) - 1)
+                #print(dist_matrix[y][x], gradient)
+                print(symbols[len(symbols) - round(gradient) - 1], end='')
+
+            print()
 
 # =================================================================================================== #
