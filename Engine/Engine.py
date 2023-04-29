@@ -15,7 +15,7 @@ class Point:
         return ((self.c1 - pt.c1) ** 2 + (self.c2 - pt.c2) ** 2 + (self.c3 - pt.c3) ** 2) ** 0.5
 
     def __str__(self):  # Настройка фомата вывода
-        return "({0},{1},{2})".format(self.c1, self.c2, self.c3)
+        return "({0}, {1}, {2})".format(self.c1, self.c2, self.c3)
 
     def __add__(self, pt):  # Перегрузка операторовw
         return Point(self.c1 + pt.c1, self.c2 + pt.c2, self.c3 + pt.c3)
@@ -49,9 +49,13 @@ class Point:
 # =================================================================================================== #
 class Vector:
 
-    def __init__(self, pt):  # Инициализация вектора
-        assert isinstance(pt, Point), "Only points dude"
-        self.pt = pt
+    def __init__(self, *args):
+        if len(args) == 1:
+            assert isinstance(args[0], Point)
+            self.pt = args[0]  # Point(x, y, z)
+        elif len(args) == 3:
+            assert all(map(isinstance, args, [(int, float)] * 3))
+            self.pt = Point(*args)
 
     def len(self):  # Вычисление длины вектора
         return self.vs.nullpoint.dist(self.pt)  #self.pt.dist(VectorSpace.nullpoint)
@@ -110,8 +114,8 @@ class VectorSpace:
         VectorSpace.basis2 = dir2
         VectorSpace.basis3 = dir3
 
-#vs = VectorSpace(Point(0, 0, 0), Vector(Point(1, 0, 0)))
-#vs = VectorSpace()
+#vs = VectorSpace(Point(0, 0, 0), Vector(Point(1, 2, 3)))
+vs = VectorSpace()
 
 Vector.vs = VectorSpace()  # Передача векторного пространства в класс Вектор
 
