@@ -81,9 +81,20 @@ class Vector:
         return Vector(Point(self.pt.c1 * num, self.pt.c2 * num, self.pt.c3 * num))
 
     def __xor__(self, vec):  # Векторное произведение
-        d1 = self.vs.basis1 * (self.pt.c2 * vec.pt.c3 - self.pt.c3 * vec.pt.c2)
+        '''d1 = self.vs.basis1 * (self.pt.c2 * vec.pt.c3 - self.pt.c3 * vec.pt.c2)
         d2 = self.vs.basis2 * (self.pt.c1 * vec.pt.c3 - self.pt.c3 * vec.pt.c1) * -1
-        d3 = self.vs.basis3 * (self.pt.c1 * vec.pt.c2 - self.pt.c2 * vec.pt.c1)
+        d3 = self.vs.basis3 * (self.pt.c1 * vec.pt.c2 - self.pt.c2 * vec.pt.c1)'''
+        x1 = self.pt.c1
+        y1 = self.pt.c2
+        z1 = self.pt.c3
+        x2 = vec.pt.c1
+        y2 = vec.pt.c2
+        z2 = vec.pt.c3
+
+        d1 = self.vs.basis1 * (y1 * z2 - y2 * z1)
+        d2 = self.vs.basis2 * -(x1 * z2 - x2 * z1)
+        d3 = self.vs.basis3 * (y2 * x1 - y1 * x2)
+
         return d1 + d2 + d3
 
     def __truediv__(self, num):
@@ -115,7 +126,7 @@ class VectorSpace:
         VectorSpace.basis3 = dir3
 
 #vs = VectorSpace(Point(0, 0, 0), Vector(Point(1, 2, 3)))
-vs = VectorSpace()
+#vs = VectorSpace()
 
 Vector.vs = VectorSpace()  # Передача векторного пространства в класс Вектор
 
@@ -164,26 +175,75 @@ class Camera:
     def __init__(self, pos: Point, look_dir: Vector, fov, draw_distance):
         self.pos = pos
         self.look_dir = look_dir.norm()
-        self.fov = fov
+        self.fov = (fov / 180 * math.pi) / 2
         self.draw_distance = draw_distance
 
         self.Vfov = self.fov / self.ratio
 
-        self.screen = BoundedPlane(self.pos + self.look_dir.pt, self.look_dir, 1, self.ratio)
+        self.screen = BoundedPlane(self.pos + self.look_dir.pt / math.tan(self.fov),
+                                   self.look_dir,
+                                   math.tan(self.fov),
+                                   math.tan(self.Vfov))
+
 
     def sendrays(self) -> list[list[Ray]]:
         rays = []
 
-        for i, tau in enumerate(n.linspace(-self.screen.du, self.screen.du, self.hight)): # width
+        for i, s in enumerate(n.linspace(-self.screen.dv,
+                                           self.screen.dv,
+                                           self.hight)): # width
             rays.append([])
 
-            for s in n.linspace(-self.screen.dv, self.screen.dv, self.width): # hight
-                direction = Vector(self.screen.pos) + s * self.screen.v + tau * self.screen.u
+            for t in n.linspace(-self.screen.du,
+                                self.screen.du,
+                                self.width): # hight
 
-                rays[i].append(Ray(direction.pt - self.look_dir.pt, self.look_dir))
+                direction = Vector(self.screen.pos) + self.screen.v * s + self.screen.u * t
+
+                direction = direction - Vector(self.pos)
+                #direction.pt.c1 *= 50 / 169 #20 / 64
+                #direction.pt.c1 /= 14 / 24
+                #direction.pt.c2 /= 14 / 44
+                direction.pt.c2 *= 400 / 925
+                #direction.pt.c1 *= 3 / 2
+                #direction.pt.c1 /= 20 / 64
+                #direction.pt.c2 *= 15 / 48
+                rays[i].append(Ray(self.pos, direction.norm()))
 
         #print(*[rj.bpt for ri in rays for rj in ri])
         return rays
+
+    def rotate(self, c1_angle, c2_angle, c3_angle):
+
+        alf = c1_angle / 180 * math.pi
+        bet = c2_angle / 180 * math.pi
+        gam = c3_angle / 180 * math.pi
+
+        '''vec1 = n.array([[self.screen.rotation.pt.c1],
+                        [self.screen.rotation.pt.c2],
+                        [self.screen.rotation.pt.c3]])'''
+
+        vec2 = n.array([[self.look_dir.pt.c1],
+                        [self.look_dir.pt.c2],
+                        [self.look_dir.pt.c3]])
+
+        M_x = [[ 1, 0            ,  0             ],
+               [ 0, math.cos(alf), -math.sin(alf) ],
+               [ 0, math.sin(alf),  math.cos(alf) ]]
+
+        M_y = [[ math.cos(bet), 0, math.sin(bet) ],
+               [ 0            , 1, 0             ],
+               [-math.sin(bet), 0, math.cos(bet) ]]
+
+        M_z = [[ math.cos(gam), -math.sin(gam), 0 ],
+               [ math.sin(gam),  math.cos(gam), 0 ],
+               [ 0            ,  0            , 1 ]]
+
+        #REZ1 = n.dot(n.dot(n.dot(M_x, M_y), M_z), vec1)
+        REZ2 = n.dot(n.dot(n.dot(M_x, M_y), M_z), vec2)
+        self.screen.param.rotate(c1_angle, c2_angle, c3_angle)
+        #self.screen.rotation = Vector(REZ1[0][0], REZ1[1][0], REZ1[2][0])
+        self.look_dir = Vector(REZ2[0][0], REZ2[1][0], REZ2[2][0])
 
 # =================================================================================================== #
 class Object:
@@ -213,6 +273,33 @@ class Parameters:
         self.pos = self.pos + pt
 
     def rotate(self, c1_angle, c2_angle, c3_angle):
+
+        alf = c1_angle / 180 * math.pi
+        bet = c2_angle / 180 * math.pi
+        gam = c3_angle / 180 * math.pi
+
+        vec = n.array([[self.rotation.pt.c1],
+                       [self.rotation.pt.c2],
+                       [self.rotation.pt.c3]])
+
+        M_x = [[ 1, 0            ,  0             ],
+               [ 0, math.cos(alf), -math.sin(alf) ],
+               [ 0, math.sin(alf),  math.cos(alf) ]]
+
+        M_y = [[ math.cos(bet), 0, math.sin(bet) ],
+               [ 0            , 1, 0             ],
+               [-math.sin(bet), 0, math.cos(bet) ]]
+
+        M_z = [[ math.cos(gam), -math.sin(gam), 0 ],
+               [ math.sin(gam),  math.cos(gam), 0 ],
+               [ 0            ,  0            , 1 ]]
+
+        REZ = n.dot(n.dot(n.dot(M_x, M_y), M_z), vec)
+
+        self.rotation = Vector(REZ[0][0], REZ[1][0], REZ[2][0])
+
+        '''if c1_angle == c2_angle == c3_angle == 0: return
+
         x_angle = c1_angle / 180 * math.pi
         y_angle = c2_angle / 180 * math.pi
         z_angle = c3_angle / 180 * math.pi
@@ -239,7 +326,7 @@ class Parameters:
         self.rotation.pt.c1 = x_old * math.cos(z_angle) \
                                    - y_old * math.sin(z_angle)
         self.rotation.pt.c2 = x_old * math.sin(z_angle) \
-                                   + y_old * math.cos(z_angle)
+                                   + y_old * math.cos(z_angle)'''
 
     def scale(self, scaling_value):
         pass
@@ -282,7 +369,7 @@ class ParametersSphere(Parameters):
 class ParametersCube(Parameters):
     def __init__(self, pos: Point, limit, rotations: [Vector], edges: '[BoundedPlane]'):
         self.pos = pos
-        self.rot = rotations[0]
+        self.rotation = rotations[0]
         self.rot2 = rotations[1]
         self.rot3 = rotations[2]
         self.limit = limit
@@ -295,10 +382,10 @@ class ParametersCube(Parameters):
             edge.pos = edge.pos + pt
 
     def scale(self, scaling_value):
-        self.rot = self.rot * scaling_value
+        self.rotation = self.rotation * scaling_value
         self.rot2 = self.rot2 * scaling_value
         self.rot3 = self.rot3 * scaling_value
-        array_rots = [self.rot, self.rot2, self.rot3]
+        array_rots = [self.rotation, self.rot2, self.rot3]
         self.limit *= scaling_value
 
         for i, edge in enumerate(self.edges):
@@ -307,7 +394,27 @@ class ParametersCube(Parameters):
             if i % 2 == 0: edge.pos = self.pos + array_rots[i // 2].pt
             else: edge.pos = self.pos - array_rots[i // 2].pt
 
-    #def rotate(self, c1_angle, c2_angle, c3_angle):
+    def rotate(self, x_angle, y_angle, z_angle):
+        tmp = Parameters(self.pos, self.rotation)
+        tmp.rotate(x_angle, y_angle, z_angle)
+        self.rotation = tmp.rotation
+
+        tmp.rotation = self.rot2
+        tmp.rotate(x_angle, y_angle, z_angle)
+        self.rot2 = tmp.rotation
+
+        tmp.rot = self.rot3
+        tmp.rotate(x_angle, y_angle, z_angle)
+        self.rot3 = tmp.rotation
+
+        rotations = [self.rotation, self.rot2, self.rot3]
+        for i, edge in enumerate(self.edges):
+            if i % 2 == 0:
+                edge.pos = self.pos + rotations[i // 2].pt
+            else:
+                edge.pos = self.pos - rotations[i // 2].pt
+
+            edge.param.rotate(x_angle, y_angle, z_angle)
 
 # =================================================================================================== #
 class Plane(Object):
@@ -377,15 +484,26 @@ class BoundedPlane(Plane):
         self.rotation = rotation
         self.pos = pos
 
-        if abs(self.rotation.pt.c1) < abs(self.rotation.pt.c2):
+        '''if abs(self.rotation.pt.c1) < abs(self.rotation.pt.c2):
             help_vec = Vector.vs.basis1
-        else: help_vec = Vector.vs.basis2
+        else: help_vec = Vector.vs.basis2'''
 
-        if self.rotation.pt == help_vec.pt:
-            help_vec = Vector.vs.basis3
+        help_vec = Vector.vs.basis2
+
+        if self.rotation.pt == help_vec.pt or \
+                self.rotation.pt == -1 * help_vec.pt:
+            help_vec = Vector.vs.basis1
+
+        '''if self.rotation.pt == help_vec.pt:
+            help_vec = Vector.vs.basis3'''
 
         self.u = (self.rotation ^ help_vec).norm()
+        #self.u = (help_vec ^ self.rotation).norm()
+        #self.v = (self.rotation ^ self.u).norm()
         self.v = (self.u ^ self.rotation).norm()
+
+        # self.u = (help_vec ^ self.rotation).norm()
+        # self.v = (self.rotation ^ self.u).norm()
 
         self.param = ParametersBoundedPlane(self.pos, self.rotation, self.u, self.v, self.du, self.dv)
 
@@ -420,7 +538,7 @@ class BoundedPlane(Plane):
     def contains(self, pt): # returns bool
         self.upd()
         if self.in_boundaries(pt):
-            return abs(self.rotation * Vector(pt - self.pos)) < 0
+            return abs(self.rotation * Vector(pt - self.pos)) < 1e-6
 
         return False
 
@@ -429,16 +547,21 @@ class BoundedPlane(Plane):
 
         #print(self.dv * self.v.pt + self.pos, type(self.dv * self.v.pt + self.pos))
 
-        if self.rotation * ray.direct != 0 and \
+        '''if self.rotation * ray.direct != 0 and \
                 not (self.rotation * Vector(ray.bpt - self.pos) == 0
                      and self.rotation * Vector(ray.direct.pt + ray.bpt
                                            - self.pos) == 0):
+            if self.contains(ray.bpt):
+                return 0'''
+
+        if self.rotation * ray.direct != 0:
             if self.contains(ray.bpt):
                 return 0
 
             t0 = (self.rotation * Vector(self.pos) -
                   self.rotation * Vector(ray.bpt)) / (self.rotation * ray.direct)
             int_pt = ray.direct.pt * t0 + ray.bpt
+
             if t0 >= 0 and self.in_boundaries(int_pt):
                 return int_pt.dist(ray.bpt)
 
@@ -463,12 +586,12 @@ class BoundedPlane(Plane):
                 if abs(begin_pr1) > 1 or abs(begin_pr2) > 1:
                     if begin_pr1 > 1:
                         begin_pr1 -= 1
-                    elif begin_pr1 < 1:
+                    elif begin_pr1 < -1:
                         begin_pr1 += 1
 
                     if begin_pr2 > 1:
                         begin_pr2 -= 1
-                    elif begin_pr2 < 1:
+                    elif begin_pr2 < -1:
                         begin_pr2 += 1
 
                     return begin_pr1 * self.du + begin_pr2 * self.dv
@@ -486,10 +609,21 @@ class BoundedPlane(Plane):
                     vy = ray1.direct.pt.c2
                     ux = ray2.direct.pt.c1
                     uy = ray2.direct.pt.c2
+
+                    '''print(x0, y0, xr, yr,
+                    vx,
+                    vy,
+                    ux,
+                    uy)'''
+
+                    if uy == ux * vy / vx:
+                        return 0, (x0 - xr) / ux
+
                     t1 = ((x0 - xr) * vy / vx + yr - y0) \
                          / (uy - ux * vy / vx)
                     s1 = (t1 * ux + x0 - xr) / vx
                     return t1, s1
+
                 elif ray1.direct.pt.c2 != 0:
                     x0 = ray1.bpt.c1
                     y0 = ray1.bpt.c2
@@ -503,6 +637,7 @@ class BoundedPlane(Plane):
                          / (ux - uy * vx / vy)
                     s1 = (t0 * uy + y0 - yr) / vy
                     return t1, s1
+
                 elif ray1.direct.pt.c3 != 0:
                     z0 = ray1.bpt.c3
                     y0 = ray1.bpt.c2
@@ -517,22 +652,22 @@ class BoundedPlane(Plane):
                     s1 = (t0 * uz + z0 - zr) / vz
                     return t1, s1
 
-            if abs(begin_pr1) > 1:
+            if abs(begin_pr1) > self.du:
                 if self.u * ray.direct == 0:
                     return
 
-                sign = 1 if begin_pr1 > 1 else -1
+                sign = 1 if begin_pr1 > 0 else -1
                 t0, s0 = find_point(
                     Ray(sign * self.du * self.u.pt + self.pos,
                         self.dv * self.v), ray)
                 if s0 >= 0 and abs(t0) <= 1:
                     return s0 * ray.direct.len()
 
-            elif abs(begin_pr2) > 1:
+            elif abs(begin_pr2) > self.dv:
                 if self.v * ray.direct == 0:
                     return
 
-                sign = 1 if begin_pr2 > 1 else -1
+                sign = 1 if begin_pr2 > 0 else -1
 
                 t0, s0 = find_point(
                     Ray(sign * self.dv * self.v.pt + self.pos,
@@ -621,8 +756,8 @@ class Sphere(Object):
             # Смотрим пересечения с поверхностью сферы
             if t2 < 0 <= t1 or 0 < t1 <= t2:
                 return t1 * ray.direct.len()
-            elif t1< 0 <= t2 or 0 < t2 <= t1:
-                return t1 * ray.direct.len()
+            elif t1 < 0 <= t2 or 0 < t2 <= t1:
+                return t2 * ray.direct.len()
 
         elif d == 0:
             t0 = -b / (2 * a)
@@ -651,32 +786,27 @@ class Sphere(Object):
 class Cube(Object):
 
     def __init__(self, pos: Point, rotation: Vector):
-        self.rot = rotation
+        self.rotation = rotation
         self.pos = pos
-        self.limit = self.rot.len()
-        a = self.rot.pt.c1
-        b = self.rot.pt.c2
+        self.limit = self.rotation.len()
 
-        '''self.rot2 = Vector(Point(b, -a, 0)).norm() * self.limit
-        self.rot3 = (self.rot2 ^ self.rot).norm() * self.limit'''
-
-        if abs(self.rot.pt.c1) < abs(self.rot.pt.c2):
+        if abs(self.rotation.pt.c1) < abs(self.rotation.pt.c2):
             x_dir = Vector.vs.basis1
         else: x_dir = Vector.vs.basis1
 
-        self.rot2 = (self.rot ^ x_dir).norm()
+        self.rot2 = (self.rotation ^ x_dir).norm()
         self.rot3 = (self.rot2 ^ x_dir).norm()
         self.edges = []
 
-        for vec in self.rot, self.rot2, self.rot3:
+        for vec in self.rotation, self.rot2, self.rot3:
             self.edges.append(BoundedPlane(vec.pt + self.pos, vec, self.limit, self.limit))
             self.edges.append(BoundedPlane(-vec.pt - self.pos, -vec, self.limit, self.limit))
 
-        self.param = ParametersCube(self.pos, self.limit, [self.rot, self.rot2, self.rot3], self.edges)
+        self.param = ParametersCube(self.pos, self.limit, [self.rotation, self.rot2, self.rot3], self.edges)
 
     def upd(self):
         self.pos = self.param.pos
-        self.rot = self.param.rot
+        self.rotation = self.param.rotation
         self.rot2 = self.param.rot2
         self.rot3 = self.param.rot3
         self.limit = self.param.limit
@@ -688,7 +818,7 @@ class Cube(Object):
 
         if rad_vec.len() == 0: return True
 
-        rot1_proj = self.rot * rad_vec / rad_vec.len()
+        rot1_proj = self.rotation * rad_vec / rad_vec.len()
         rot2_proj = self.rot2 * rad_vec / rad_vec.len()
         rot3_proj = self.rot3 * rad_vec / rad_vec.len()
 
@@ -760,7 +890,10 @@ class Cube(Object):
 
 
 # =================================================================================================== #
-symbols = (' ', '.', ',', '-', '+', '=', '*', '#', '%', '&', '$', '@')
+#symbols = " .:!/r(l1Z4H9W8$@"
+symbols = " .-:+=*ZH&#$%@W"
+#(' ', '.', ',', '-', '+', '=', '*', '#', '%', '&', '$', '@')
+#symbols = (' ', '$', '&', '%', '#', '*', '=', '+', '-', ',', '.', '@')
 #symbols = (' ', '.', ',', '-', '+', '=', '*', '#', '%', '&')
 
 class Canvas:
@@ -796,18 +929,23 @@ class Console(Canvas):
 
     def draw(self):
         dist_matrix = self.update()
+        output = ""
 
         for y in range(len(dist_matrix)):
 
             for x in range(len(dist_matrix[y])):
                 if dist_matrix[y][x] is None:
-                    print(symbols[0], end='')
+                    #print(symbols[0], end='')
+                    output += symbols[0]
                     continue
 
                 gradient = dist_matrix[y][x] / self.cam.draw_distance * (len(symbols) - 1)
                 #print(dist_matrix[y][x], gradient)
-                print(symbols[len(symbols) - round(gradient) - 1], end='')
+                #print(symbols[len(symbols) - round(gradient) - 1], end='')
+                output += symbols[len(symbols) - round(gradient) - 1]
 
-            print()
+            output += "\n"
+
+        print(output)
 
 # =================================================================================================== #
