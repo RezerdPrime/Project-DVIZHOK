@@ -1,89 +1,77 @@
 import configparser
-import numpy as n
 import math
+import numpy as np
+import sys
 
-
-# =================================================================================================== #
+# ==================================================================================================================== #
 class Point:
+    def __init__(self, x, y, z):
+        self.c1 = x
+        self.c2 = y
+        self.c3 = z
 
-    def __init__(self, c1, c2, c3):  # Инициализация точки
-        self.c1 = c1
-        self.c2 = c2
-        self.c3 = c3
-
-    def dist(self, pt):  # Измерение расстояния между точками
-        return ((self.c1 - pt.c1) ** 2 + (self.c2 - pt.c2) ** 2 + (self.c3 - pt.c3) ** 2) ** 0.5
-
-    def __str__(self):  # Настройка фомата вывода
-        return "({0}, {1}, {2})".format(self.c1, self.c2, self.c3)
-
-    def __add__(self, pt):  # Перегрузка операторовw
+    def __add__(self, pt):
         return Point(self.c1 + pt.c1, self.c2 + pt.c2, self.c3 + pt.c3)
 
+    def __mul__(self, arg: [int, float]):
+        return Point(self.c1 * arg, self.c2 * arg, self.c3 * arg)
+
     def __sub__(self, pt):
-        return Point(self.c1 - pt.c1, self.c2 - pt.c2, self.c3 - pt.c3)
+        return self.__add__(-1 * pt)
 
-    def __mul__(self, arg):
+    def __rmul__(self, pt):
+        return self.__mul__(pt)
 
-        if isinstance(arg, Point):
-            return Point(self.c1 * arg.c1, self.c2 * arg.c2, self.c3 * arg.c3)
+    def __truediv__(self, arg: [int, float]):
+        assert arg != 0
+        return self.__mul__(1 / arg)
 
-        if isinstance(arg, int) or isinstance(arg, float):
-            return Point(self.c1 * arg, self.c2 * arg, self.c3 * arg)
-
-    def __rmul__(self, arg):
-        return self.__mul__(arg)
-
-    def __truediv__(self, arg):
-
-        if isinstance(arg, Point):
-            return Point(self.c1 / arg.c1, self.c2 / arg.c2, self.c3 / arg.c3)
-
-        if isinstance(arg, int) or isinstance(arg, float):
-            return Point(self.c1 / arg, self.c2 / arg, self.c3 / arg)
-
-    def __neg__(self):
-        return Point(-self.c1, -self.c2, -self.c3)
+    def dist(self, pt):
+        return ((self.c1 - pt.c1) ** 2 + (self.c2 - pt.c2) ** 2 + (self.c3 - pt.c3) ** 2) ** 0.5
 
 
 # =================================================================================================== #
 class Vector:
-
     def __init__(self, *args):
+
         if len(args) == 1:
             assert isinstance(args[0], Point)
-            self.pt = args[0]  # Point(x, y, z)
+            self.pt = args[0]
+
         elif len(args) == 3:
             assert all(map(isinstance, args, [(int, float)] * 3))
             self.pt = Point(*args)
 
-    def len(self):  # Вычисление длины вектора
-        return self.vs.nullpoint.dist(self.pt)  #self.pt.dist(VectorSpace.nullpoint)
+    def len(self):
+        return self.vs.nullpt.dist(self.pt)
 
-    def __str__(self):  # Настройка фомата вывода
-        return "{0}".format(self.pt)
+    def norm(self):
+        if self.len() == 0:
+            return self
 
-    def __add__(self, vec):  # Перегрузка операторов
+        return Vector(self.pt / self.len())
+
+    def __add__(self, vec: "Vector"):
         return Vector(self.pt + vec.pt)
 
-    def __sub__(self, vec):
+    def __sub__(self, vec: "Vector"):
         return Vector(self.pt - vec.pt)
 
     def __mul__(self, arg):
-
-        if isinstance(arg, Vector):  # Скалярное произведение
+        if isinstance(arg, Vector):
             return (self.pt.c1 * arg.pt.c1) + (self.pt.c2 * arg.pt.c2) + (self.pt.c3 * arg.pt.c3)
 
-        if isinstance(arg, int) or isinstance(arg, float):  # Произведение вектора на число
-            return Vector(Point(self.pt.c1 * arg, self.pt.c2 * arg, self.pt.c3 * arg))
+        else:
+            return Vector(self.pt * arg)
 
-    def __rmul__(self, num):  # Реализация коммутативности умножения
-        return Vector(Point(self.pt.c1 * num, self.pt.c2 * num, self.pt.c3 * num))
+    def __rmul__(self, arg: [int, float]):
+        return Vector(self.pt * arg)
 
-    def __xor__(self, vec):  # Векторное произведение
-        '''d1 = self.vs.basis1 * (self.pt.c2 * vec.pt.c3 - self.pt.c3 * vec.pt.c2)
-        d2 = self.vs.basis2 * (self.pt.c1 * vec.pt.c3 - self.pt.c3 * vec.pt.c1) * -1
-        d3 = self.vs.basis3 * (self.pt.c1 * vec.pt.c2 - self.pt.c2 * vec.pt.c1)'''
+    def __truediv__(self, arg: [int, float]):
+        return Vector(self.pt / arg)
+
+    def __xor__(self, vec):
+
         x1 = self.pt.c1
         y1 = self.pt.c2
         z1 = self.pt.c3
@@ -91,497 +79,350 @@ class Vector:
         y2 = vec.pt.c2
         z2 = vec.pt.c3
 
-        d1 = self.vs.basis1 * (y1 * z2 - y2 * z1)
-        d2 = self.vs.basis2 * -(x1 * z2 - x2 * z1)
-        d3 = self.vs.basis3 * (y2 * x1 - y1 * x2)
+        x = self.vs.basis[0] * (y1 * z2 - y2 * z1)
+        y = self.vs.basis[1] * -(x1 * z2 - x2 * z1)
+        z = self.vs.basis[2] * (y2 * x1 - y1 * x2)
 
-        return d1 + d2 + d3
+        return x + y + z
 
-    def __truediv__(self, num):
-        return Vector(self.pt / num)
+    def rotate(self, x_angle: float = 0, y_angle: float = 0,
+               z_angle: float = 0):
 
-    def __neg__(self):
-        return self * -1
+        x_angle = math.pi * x_angle / 360
+        y_angle = math.pi * y_angle / 360
+        z_angle = math.pi * z_angle / 360
 
-    def norm(self):
-        if self.len() != 0: return Vector(self.pt / self.len())
-        else: return self
+        # Поворот вокруг оси Ox
+        y_old = self.pt.c2
+        z_old = self.pt.c3
+        self.pt.c2 = y_old * math.cos(x_angle) \
+                               - z_old * math.sin(x_angle)
+        self.pt.c3 = y_old * math.sin(x_angle) \
+                               + z_old * math.cos(x_angle)
+
+        # Поворот вокруг оси Oy
+        x_old = self.pt.c1
+        z_old = self.pt.c3
+        self.pt.c1 = x_old * math.cos(y_angle) \
+                               + z_old * math.sin(y_angle)
+        self.pt.c3 = x_old * -math.sin(y_angle) \
+                               + z_old * math.cos(y_angle)
+
+        # Поворот вокруг оси Oz
+        x_old = self.pt.c1
+        y_old = self.pt.c2
+        self.pt.c1 = x_old * math.cos(z_angle) \
+                               - y_old * math.sin(z_angle)
+        self.pt.c2 = x_old * math.sin(z_angle) \
+                               + y_old * math.cos(z_angle)
 
 
 # =================================================================================================== #
 class VectorSpace:
-    nullpoint = Point(0, 0, 0)          # Задание дефолтных значений
-    basis1 = Vector(Point(1, 0, 0))     # атрибутов класса
-    basis2 = Vector(Point(0, 1, 0))
-    basis3 = Vector(Point(0, 0, 1))
+    nullpt = Point(0, 0, 0)
+    basis = [Vector(1, 0, 0), Vector(0, 1, 0), Vector(0, 0, 1)]
 
-    def __init__(self, init_pt: Point = nullpoint,
-                 dir1: Vector = basis1,
-                 dir2: Vector = basis2,
-                 dir3: Vector = basis3):
+    '''basis1 = Vector(1, 0, 0)
+    basis2 = Vector(0, 1, 0)
+    basis3 = Vector(0, 0, 1)'''
 
-        VectorSpace.nullpoint = init_pt  # Инициализация векторного пространства
-        VectorSpace.basis1 = dir1
-        VectorSpace.basis2 = dir2
-        VectorSpace.basis3 = dir3
+    def __init__(self, nullpt: Point = nullpt, dir1: Vector = None,
+                 dir2: Vector = None, dir3: Vector = None):
+        self.nullpt = nullpt
+        for i, d in enumerate((dir1, dir2, dir3)):
+            if d is not None:
+                VectorSpace.basis[i] = d.norm()
 
-#vs = VectorSpace(Point(0, 0, 0), Vector(Point(1, 2, 3)))
-#vs = VectorSpace()
-
-Vector.vs = VectorSpace()  # Передача векторного пространства в класс Вектор
+Vector.vs = VectorSpace()
 
 
 # =================================================================================================== #
 class Map:
-
     def __init__(self):
-        self.list = []
+        self.listobj = []
 
-    def append(self, *obj):
-        self.list.extend(obj)
+    def append(self, *objs):
+        self.listobj.extend(objs)
 
-    def __getitem__(self, index):
-        return self.list[index]
+    def __getitem__(self, item):
+        return self.listobj[item]
 
     def __iter__(self):
-        return iter(self.list)
+        return iter(self.listobj)
 
 
-# =================================================================================================== #
+# ==================================================================================================================== #
 class Ray:
+    def __init__(self, pt: Point, direction: Vector):
+        self.pt = pt
+        self.dir = direction
 
-    def __init__(self, bpt: Point, direct: Vector):
-        self.bpt = bpt
-        self.direct = direct
-
-    def intersect(self, mappy: Map): # Schweintersekt
-        return [iobj.intersect(self) for iobj in mappy]
+    def intersect(self, mapping: Map) -> list[float]:
+        return [objt.intersect(self) for objt in mapping]
 
 
-# =================================================================================================== #
+# ==================================================================================================================== #
 class Camera:
     config = configparser.ConfigParser()
     config.read("config.cfg")
-
-    '''self.width = int(config['SCREEN']['width']) #self.hight
-    self.hight = int(config['SCREEN']['hight'])
-
-    self.ratio = self.hight / self.width'''
-
-    hight = int(config['SCREEN']['hight']) #int(config['SCREEN']['width'])
-    width = int(config['SCREEN']['width']) #int(config['SCREEN']['hight'])
+    hight = int(config['SCREEN']['hight'])
+    width = int(config['SCREEN']['width'])
     ratio = width / hight
 
-    def __init__(self, pos: Point, look_dir: Vector, fov, draw_distance):
-        self.pos = pos
+    def __init__(self, position: Point, look_dir: Vector,
+                 fov, draw_dist):
+
+        self.pos = position
         self.look_dir = look_dir.norm()
+        self.draw_dist = draw_dist
         self.fov = (fov / 180 * math.pi) / 2
-        self.draw_distance = draw_distance
+        self.vfov = self.fov / self.ratio
 
-        self.Vfov = self.fov / self.ratio
+        self.screen = BoundedPlane(
+            self.pos + self.look_dir.pt / math.tan(self.fov),
+            self.look_dir, math.tan(self.fov), math.tan(self.vfov))
 
-        self.screen = BoundedPlane(self.pos + self.look_dir.pt / math.tan(self.fov),
-                                   self.look_dir,
-                                   math.tan(self.fov),
-                                   math.tan(self.Vfov))
-
-
-    def sendrays(self) -> list[list[Ray]]:
+    def send_rays(self) -> list[list[Ray]]:
         rays = []
 
-        for i, s in enumerate(n.linspace(-self.screen.dv,
-                                           self.screen.dv,
-                                           self.hight)): # width
+        for i, s in enumerate(np.linspace(-self.screen.dv, self.screen.dv, self.hight)):
             rays.append([])
 
-            for t in n.linspace(-self.screen.du,
-                                self.screen.du,
-                                self.width): # hight
-
-                direction = Vector(self.screen.pos) + self.screen.v * s + self.screen.u * t
+            for t in np.linspace(-self.screen.du, self.screen.du, self.width):
+                direction = Vector(self.screen.pos) \
+                            + self.screen.v * s + self.screen.u * t
 
                 direction = direction - Vector(self.pos)
-                #direction.pt.c1 *= 50 / 169 #20 / 64
-                #direction.pt.c1 /= 14 / 24
-                #direction.pt.c2 /= 14 / 44
-                direction.pt.c2 *= 400 / 925
-                #direction.pt.c1 *= 3 / 2
-                #direction.pt.c1 /= 20 / 64
-                #direction.pt.c2 *= 15 / 48
+                direction.pt.c2 /= 15 / 48
                 rays[i].append(Ray(self.pos, direction.norm()))
 
-        #print(*[rj.bpt for ri in rays for rj in ri])
         return rays
 
-    def rotate(self, c1_angle, c2_angle, c3_angle):
+    def rotate(self, x_angle=0, y_angle=0, z_angle=0):
+        self.look_dir.rotate(x_angle, y_angle, z_angle)
+        self.screen.pr.rotate(x_angle, y_angle, z_angle)
+        self.screen.pr.pos = self.pos + self.look_dir.pt
+        self.screen._update()
 
-        alf = c1_angle / 180 * math.pi
-        bet = c2_angle / 180 * math.pi
-        gam = c3_angle / 180 * math.pi
 
-        '''vec1 = n.array([[self.screen.rotation.pt.c1],
-                        [self.screen.rotation.pt.c2],
-                        [self.screen.rotation.pt.c3]])'''
-
-        vec2 = n.array([[self.look_dir.pt.c1],
-                        [self.look_dir.pt.c2],
-                        [self.look_dir.pt.c3]])
-
-        M_x = [[ 1, 0            ,  0             ],
-               [ 0, math.cos(alf), -math.sin(alf) ],
-               [ 0, math.sin(alf),  math.cos(alf) ]]
-
-        M_y = [[ math.cos(bet), 0, math.sin(bet) ],
-               [ 0            , 1, 0             ],
-               [-math.sin(bet), 0, math.cos(bet) ]]
-
-        M_z = [[ math.cos(gam), -math.sin(gam), 0 ],
-               [ math.sin(gam),  math.cos(gam), 0 ],
-               [ 0            ,  0            , 1 ]]
-
-        #REZ1 = n.dot(n.dot(n.dot(M_x, M_y), M_z), vec1)
-        REZ2 = n.dot(n.dot(n.dot(M_x, M_y), M_z), vec2)
-        self.screen.param.rotate(c1_angle, c2_angle, c3_angle)
-        #self.screen.rotation = Vector(REZ1[0][0], REZ1[1][0], REZ1[2][0])
-        self.look_dir = Vector(REZ2[0][0], REZ2[1][0], REZ2[2][0])
-
-# =================================================================================================== #
+# ==================================================================================================================== #
 class Object:
-
     def __init__(self, pos: Point, rotation: Vector):
         self.pos = pos
-        self.rotation = rotation
+        self.rot = rotation
 
-    def contains(self, pt: Point): # returns bool
+    def contains(self, pt: Point, eps=1e-6) -> bool:
         return False
 
-    def intersect(self, ray: Ray): # returns float
+    def intersect(self, ray: Ray) -> float or None:
         return None
 
-    def nearest_point(self, *pts: list[Point]): # returns point
+    def nearest_point(self, *pts: list[Point]) -> Point:
         pass
 
 
-# =================================================================================================== #
+# ==================================================================================================================== #
 class Parameters:
-
     def __init__(self, pos: Point, rotation: Vector):
         self.pos = pos
-        self.rotation = rotation
+        self.rot = rotation
 
-    def move(self, pt):
+    def move(self, pt: Point):
         self.pos = self.pos + pt
 
-    def rotate(self, c1_angle, c2_angle, c3_angle):
-
-        alf = c1_angle / 180 * math.pi
-        bet = c2_angle / 180 * math.pi
-        gam = c3_angle / 180 * math.pi
-
-        vec = n.array([[self.rotation.pt.c1],
-                       [self.rotation.pt.c2],
-                       [self.rotation.pt.c3]])
-
-        M_x = [[ 1, 0            ,  0             ],
-               [ 0, math.cos(alf), -math.sin(alf) ],
-               [ 0, math.sin(alf),  math.cos(alf) ]]
-
-        M_y = [[ math.cos(bet), 0, math.sin(bet) ],
-               [ 0            , 1, 0             ],
-               [-math.sin(bet), 0, math.cos(bet) ]]
-
-        M_z = [[ math.cos(gam), -math.sin(gam), 0 ],
-               [ math.sin(gam),  math.cos(gam), 0 ],
-               [ 0            ,  0            , 1 ]]
-
-        REZ = n.dot(n.dot(n.dot(M_x, M_y), M_z), vec)
-
-        self.rotation = Vector(REZ[0][0], REZ[1][0], REZ[2][0])
-
-        '''if c1_angle == c2_angle == c3_angle == 0: return
-
-        x_angle = c1_angle / 180 * math.pi
-        y_angle = c2_angle / 180 * math.pi
-        z_angle = c3_angle / 180 * math.pi
-
-        # Поворот вокруг оси Ox
-        y_old = self.rotation.pt.c2
-        z_old = self.rotation.pt.c3
-        self.rotation.pt.c2 = y_old * math.cos(x_angle) \
-                                   - z_old * math.sin(x_angle)
-        self.rotation.pt.c3 = y_old * math.sin(x_angle) \
-                                   + z_old * math.cos(x_angle)
-
-        # Поворот вокруг оси Oy
-        x_old = self.rotation.pt.c1
-        z_old = self.rotation.pt.c3
-        self.rotation.pt.c1 = x_old * math.cos(y_angle) \
-                                   + z_old * math.sin(y_angle)
-        self.rotation.pt.c2 = x_old * -math.sin(y_angle) \
-                                   + z_old * math.cos(y_angle)
-
-        # Поворот вокруг оси Oz
-        x_old = self.rotation.pt.c1
-        y_old = self.rotation.pt.c2
-        self.rotation.pt.c1 = x_old * math.cos(z_angle) \
-                                   - y_old * math.sin(z_angle)
-        self.rotation.pt.c2 = x_old * math.sin(z_angle) \
-                                   + y_old * math.cos(z_angle)'''
-
-    def scale(self, scaling_value):
+    def scaling(self, value):
         pass
 
-
-# =================================================================================================== #
-'''class ParametersPlane(Parameters):
-    def __init__(self, pos: Point, rotation: Vector):
-        self.pos = pos
-        self.rotation = rotation'''
+    def rotate(self, x_angle: float = 0, y_angle: float = 0, z_angle: float = 0):
+        self.rot.rotate(x_angle, y_angle, z_angle)
 
 
-# =================================================================================================== #
-class ParametersBoundedPlane(Parameters):
-    def __init__(self, pos: Point, rotation: Vector, v, u, dv, du):
-        self.pos = pos
-        self.rotation = rotation
-        self.v = v
+# ==================================================================================================================== #
+class BoundedPlane_pr(Parameters):
+    def __init__(self, pos: Point, rotation: Vector, u, v, du, dv):
+
+        super().__init__(pos, rotation)
         self.u = u
-        self.dv = dv
+        self.v = v
         self.du = du
+        self.dv = dv
 
-    def scale(self, scaling_value):
-        self.dv *= scaling_value
-        self.du *= scaling_value
+    def scaling(self, arg: [int, float]):
+        self.du = self.du * arg
+        self.dv = self.dv * arg
+
+    def rotate(self, x_angle=0, y_angle=0, z_angle=0):
+        self.rot.rotate(x_angle, y_angle, z_angle)
+        self.u.rotate(x_angle, y_angle, z_angle)
+        self.v.rotate(x_angle, y_angle, z_angle)
 
 
-# =================================================================================================== #
-class ParametersSphere(Parameters):
+# ==================================================================================================================== #
+class Sphere_pr(Parameters):
     def __init__(self, pos: Point, rotation: Vector, radius):
-        self.pos = pos
-        self.rotation = rotation
-        self.rd = radius
+        super().__init__(pos, rotation)
+        self.r = radius
 
-    def scale(self, scaling_value):
-        self.rd *= scaling_value
+    def scaling(self, arg: [int, float]):
+        self.r = self.r * arg
 
 
-# =================================================================================================== #
-class ParametersCube(Parameters):
+# ==================================================================================================================== #
+class Cube_pr(Parameters):
     def __init__(self, pos: Point, limit, rotations: [Vector], edges: '[BoundedPlane]'):
-        self.pos = pos
-        self.rotation = rotations[0]
-        self.rot2 = rotations[1]
-        self.rot3 = rotations[2]
+        super().__init__(pos, rotations[0])
+        self.rot2, self.rot3 = rotations[1:]
         self.limit = limit
         self.edges = edges
 
-    def move(self, pt):
+    def move(self, pt: Point):
         self.pos = self.pos + pt
 
         for edge in self.edges:
             edge.pos = edge.pos + pt
 
-    def scale(self, scaling_value):
-        self.rotation = self.rotation * scaling_value
-        self.rot2 = self.rot2 * scaling_value
-        self.rot3 = self.rot3 * scaling_value
-        array_rots = [self.rotation, self.rot2, self.rot3]
-        self.limit *= scaling_value
+    def scaling(self, arg: [int, float]):
+        self.rot = self.rot * arg
+        self.rot2 = self.rot2 * arg
+        self.rot3 = self.rot3 * arg
+        rotations = [self.rot, self.rot2, self.rot3]
+        self.limit *= arg
 
         for i, edge in enumerate(self.edges):
-            edge.param.scale(scaling_value)
+            edge.pr.scaling(arg)
+            if i % 2 == 0:
+                edge.pr.pos = self.pos + rotations[i // 2].pt
+                edge._update()
 
-            if i % 2 == 0: edge.pos = self.pos + array_rots[i // 2].pt
-            else: edge.pos = self.pos - array_rots[i // 2].pt
+            else:
+                edge.pr.pos = self.pos - rotations[i // 2].pt
+                edge._update()
 
-    def rotate(self, x_angle, y_angle, z_angle):
-        tmp = Parameters(self.pos, self.rotation)
-        tmp.rotate(x_angle, y_angle, z_angle)
-        self.rotation = tmp.rotation
+    def rotate(self, x_angle=0, y_angle=0, z_angle=0):
+        self.rot.rotate(x_angle, y_angle, z_angle)
+        self.rot2.rotate(x_angle, y_angle, z_angle)
+        self.rot3.rotate(x_angle, y_angle, z_angle)
 
-        tmp.rotation = self.rot2
-        tmp.rotate(x_angle, y_angle, z_angle)
-        self.rot2 = tmp.rotation
-
-        tmp.rot = self.rot3
-        tmp.rotate(x_angle, y_angle, z_angle)
-        self.rot3 = tmp.rotation
-
-        rotations = [self.rotation, self.rot2, self.rot3]
+        rotations = [self.rot, self.rot2, self.rot3]
         for i, edge in enumerate(self.edges):
             if i % 2 == 0:
-                edge.pos = self.pos + rotations[i // 2].pt
+                edge.pr.pos = self.pos + rotations[i // 2].pt
+
             else:
-                edge.pos = self.pos - rotations[i // 2].pt
+                edge.pr.pos = self.pos - rotations[i // 2].pt
 
-            edge.param.rotate(x_angle, y_angle, z_angle)
+            edge.pr.rotate(x_angle, y_angle, z_angle)
 
-# =================================================================================================== #
+
+# ==================================================================================================================== #
 class Plane(Object):
 
-    def __init__(self, pos: Point, rotation: Vector):
+    def __init__(self, position, rotation):
+        super().__init__(position, rotation)
+        self.pr = Parameters(self.pos, self.rot)
 
-        self.pos = pos
-        self.rotation = rotation
-        self.param = Parameters(self.pos, self.rotation)
+    def _update(self):
+        self.pos = self.pr.pos
+        self.rot = self.pr.rot
 
-    def upd(self):
-        self.pos = self.param.pos
-        self.rotation = self.param.rotation
+    def contains(self, pt: Point, eps=1e-6) -> bool:
+        self._update()
+        return abs(self.rot * Vector(pt - self.pos)) < eps
 
-    def contains(self, pt): # A(x - x0) + B(y - y0) + C(z - z0) = 0
-        self.upd()
-        return abs(self.rotation * Vector(pt - self.pos)) < 1e-6
+    def intersect(self, ray: Ray) -> float:
+        self._update()
+        if self.rot * ray.dir != 0 and \
+                not (self.contains(ray.pt)
+                     and self.contains( ray.dir.pt)):
 
-    def intersect(self, ray: Ray): # returns float
-        self.upd()
+            t0 = (self.rot * Vector(self.pos) - self.rot * Vector(ray.pt)) / (self.rot * ray.dir)
+            if t0 >= 0: return t0 * ray.dir.len()
 
-        if self.rotation * ray.direct != 0 and not (self.contains(ray.bpt) and self.contains(ray.direct.pt)): # Пересечение в одной точке
-            t0 = (self.rotation * Vector(self.pos) - self.rotation * Vector(ray.bpt)) / (self.rotation * ray.direct)
+        elif self.contains(ray.pt): return 0
 
-            if 0 >= t0:
-                #return (t0 * ray.direct.pt + ray.bpt).dist(ray.bpt)
-                return t0 * ray.direct.len()
-
-        elif self.contains(ray.bpt): return 0
-
-        #return Vector.vs.nullpoint
-
-    def nearest_point(self, *pts: Point):
-        self.upd()
-        dist_min = 2 ** 63 - 1
-        pt_min = Vector.vs.nullpoint
+    def nearest_point(self, *pts: Point) -> Point:
+        self._update()
+        r_min = sys.maxsize
+        min_pt = Vector.vs.nullpt
 
         for pt in pts:
-            dist = abs(self.rotation * Vector(pt - self.pos)) / self.rotation.len()
+            r = abs(self.rot * Vector(pt - self.pos)) / self.rot.len()
+            if r == 0: return pt
 
-            if dist < dist_min:
-                dist_min = dist
-                pt_min = pt
+            if r < r_min:
+                r_min = r
+                min_pt = pt
 
-        return pt_min
+        return min_pt
 
 
-# =================================================================================================== #
+# ==================================================================================================================== #
 class BoundedPlane(Plane):
 
-    # def __init__(self, pos: Point, rotation: Vector, *, dv1, dv2):
-    #     self.pos = pos
-    #     self.rotation = rotation
-    #     self.dv1 = dv1
-    #     self.dv2 = dv2
-    #
-    #     a = self.rotation.pt.c1
-    #     b = self.rotation.pt.c2
-    #
-    #     self.vec1 = Vector(Point(b, -a, 0)).norm() # направляющие вектора плоскости, лежащие в ней
-    #     self.vec2 = (self.vec1 ^ self.rotation).norm()
+    def __init__(self, pos: Point, rotation: Vector, du, dv):
 
-    def __init__(self, pos: Point, rotation: Vector, dv, du):
-
-        self.dv = dv
+        super().__init__(pos, rotation)
         self.du = du
-        self.rotation = rotation
-        self.pos = pos
+        self.dv = dv
 
-        '''if abs(self.rotation.pt.c1) < abs(self.rotation.pt.c2):
-            help_vec = Vector.vs.basis1
-        else: help_vec = Vector.vs.basis2'''
+        y_dir = Vector.vs.basis[1]
+        if self.rot.pt == y_dir.pt or self.rot.pt == -1 * y_dir.pt:
+            y_dir = Vector.vs.basis[0]
 
-        help_vec = Vector.vs.basis2
+        self.u = (self.rot ^ y_dir).norm()
+        self.v = (self.rot ^ self.u).norm()
 
-        if self.rotation.pt == help_vec.pt or \
-                self.rotation.pt == -1 * help_vec.pt:
-            help_vec = Vector.vs.basis1
+        self.pr = BoundedPlane_pr(self.pos, self.rot, self.u, self.v, self.du, self.dv)
 
-        '''if self.rotation.pt == help_vec.pt:
-            help_vec = Vector.vs.basis3'''
+    def _update(self):
+        self.pos = self.pr.pos
+        self.rot = self.pr.rot
+        self.u = self.pr.u
+        self.v = self.pr.v
+        self.du = self.pr.du
+        self.dv = self.pr.dv
 
-        self.u = (self.rotation ^ help_vec).norm()
-        #self.u = (help_vec ^ self.rotation).norm()
-        #self.v = (self.rotation ^ self.u).norm()
-        self.v = (self.u ^ self.rotation).norm()
+    def in_boundaries(self, pt: Point) -> bool:
 
-        # self.u = (help_vec ^ self.rotation).norm()
-        # self.v = (self.rotation ^ self.u).norm()
-
-        self.param = ParametersBoundedPlane(self.pos, self.rotation, self.u, self.v, self.du, self.dv)
-
-        '''self.pos = self.param.pos
-        self.rotation = self.param.rotation
-        self.u = self.param.u
-        self.v = self.param.v
-        self.dv = self.param.dv
-        self.du = self.param.du'''
-
-    def upd(self):
-        self.pos = self.param.pos
-        self.rotation = self.param.rotation
-        self.u = self.param.u
-        self.v = self.param.v
-        self.dv = self.param.dv
-        self.du = self.param.du
-
-    def in_boundaries(self, pt: Point):
-        self.upd()
-
+        self._update()
         corner = self.u * self.du + self.v * self.dv
-
         delta_x = corner.pt.c1
         delta_y = corner.pt.c2
         delta_z = corner.pt.c3
 
-        return abs(pt.c1 - self.pos.c1) <= abs(delta_x)  \
-            and abs(pt.c2 - self.pos.c2) <= abs(delta_y)  \
-             and abs(pt.c3 - self.pos.c3) <= abs(delta_z) #\
+        return abs(pt.c1 - self.pos.c1) <= abs(delta_x) \
+            and abs(pt.c2 - self.pos.c2) <= abs(delta_y) \
+            and abs(pt.c3 - self.pos.c3) <= abs(delta_z)
 
-    def contains(self, pt): # returns bool
-        self.upd()
+    def contains(self, pt: Point, eps=1e-6) -> bool:
+        self._update()
         if self.in_boundaries(pt):
-            return abs(self.rotation * Vector(pt - self.pos)) < 1e-6
+            return abs(self.rot * Vector(pt - self.pos)) < eps
 
         return False
 
-    def intersect(self, ray: Ray): # returns float\
-        self.upd()
+    def intersect(self, ray: Ray) -> float or None:
 
-        #print(self.dv * self.v.pt + self.pos, type(self.dv * self.v.pt + self.pos))
+        self._update()
+        if self.rot * ray.dir != 0:
+            if self.contains(ray.pt): return 0
 
-        '''if self.rotation * ray.direct != 0 and \
-                not (self.rotation * Vector(ray.bpt - self.pos) == 0
-                     and self.rotation * Vector(ray.direct.pt + ray.bpt
-                                           - self.pos) == 0):
-            if self.contains(ray.bpt):
-                return 0'''
+            t0 = (self.rot * Vector(self.pos) -
+                  self.rot * Vector(ray.pt)) / (self.rot * ray.dir)
 
-        if self.rotation * ray.direct != 0:
-            if self.contains(ray.bpt):
-                return 0
+            pti = ray.dir.pt * t0 + ray.pt
+            if t0 >= 0 and self.in_boundaries(pti): return pti.dist(ray.pt)
 
-            t0 = (self.rotation * Vector(self.pos) -
-                  self.rotation * Vector(ray.bpt)) / (self.rotation * ray.direct)
-            int_pt = ray.direct.pt * t0 + ray.bpt
+        elif self.rot * Vector(ray.dir.pt + ray.pt - self.pos) == 0:
 
-            if t0 >= 0 and self.in_boundaries(int_pt):
-                return int_pt.dist(ray.bpt)
-
-        elif self.rotation * Vector(
-                ray.direct.pt + ray.bpt - self.pos) == 0:
-            # Проекции вектора из точки центра плоскости
-            # к точке начала вектора v на направляющие вектора плоскости
-            r_begin = Vector(ray.bpt - self.pos)
-            # Если начало вектора совпадает с центром плоскости
-            if r_begin.len() == 0:
-                return 0
+            r_begin = Vector(ray.pt - self.pos)
+            if r_begin.len() == 0: return 0
 
             begin_pr1 = r_begin * self.u * self.du / r_begin.len()
             begin_pr2 = r_begin * self.v * self.dv / r_begin.len()
-            if abs(begin_pr1) <= 1 and abs(begin_pr2) <= 1:
-                return 0
+            if abs(begin_pr1) <= 1 and abs(begin_pr2) <= 1: return 0
 
-            # Проекции вектора из точки центра плоскости
-            # к точке конца вектора v на направляющие вектора плоскости
-            r_end = r_begin + ray.direct
+            r_end = r_begin + ray.dir
             if r_end.len() == 0:
                 if abs(begin_pr1) > 1 or abs(begin_pr2) > 1:
                     if begin_pr1 > 1:
@@ -600,286 +441,247 @@ class BoundedPlane(Plane):
 
             def find_point(ray1: Ray, ray2: Ray):
 
-                if ray1.direct.pt.c1 != 0:
-                    x0 = ray1.bpt.c1
-                    y0 = ray1.bpt.c2
-                    xr = ray2.bpt.c1
-                    yr = ray2.bpt.c2
-                    vx = ray1.direct.pt.c1
-                    vy = ray1.direct.pt.c2
-                    ux = ray2.direct.pt.c1
-                    uy = ray2.direct.pt.c2
+                if ray1.dir.pt.c1 != 0:
+                    x0 = ray1.pt.c1
+                    y0 = ray1.pt.c2
+                    xr = ray2.pt.c1
+                    yr = ray2.pt.c2
+                    vx = ray1.dir.pt.c1
+                    vy = ray1.dir.pt.c2
+                    ux = ray2.dir.pt.c1
+                    uy = ray2.dir.pt.c2
 
-                    '''print(x0, y0, xr, yr,
-                    vx,
-                    vy,
-                    ux,
-                    uy)'''
-
-                    if uy == ux * vy / vx:
-                        return 0, (x0 - xr) / ux
-
-                    t1 = ((x0 - xr) * vy / vx + yr - y0) \
-                         / (uy - ux * vy / vx)
+                    t1 = ((x0 - xr) * vy / vx + yr - y0) / (uy - ux * vy / vx)
                     s1 = (t1 * ux + x0 - xr) / vx
                     return t1, s1
 
-                elif ray1.direct.pt.c2 != 0:
-                    x0 = ray1.bpt.c1
-                    y0 = ray1.bpt.c2
-                    xr = ray2.bpt.c1
-                    yr = ray2.bpt.c2
-                    vx = ray1.direct.pt.c1
-                    vy = ray1.direct.pt.c2
-                    ux = ray2.direct.pt.c1
-                    uy = ray2.direct.pt.c2
-                    t1 = ((y0 - yr) * vx / vy + xr - x0) \
-                         / (ux - uy * vx / vy)
+                elif ray1.dir.pt.c2 != 0:
+                    x0 = ray1.pt.c1
+                    y0 = ray1.pt.c2
+                    xr = ray2.pt.c1
+                    yr = ray2.pt.c2
+                    vx = ray1.dir.pt.c1
+                    vy = ray1.dir.pt.c2
+                    ux = ray2.dir.pt.c1
+                    uy = ray2.dir.pt.c2
+
+                    t1 = ((y0 - yr) * vx / vy + xr - x0) / (ux - uy * vx / vy)
                     s1 = (t0 * uy + y0 - yr) / vy
                     return t1, s1
 
-                elif ray1.direct.pt.c3 != 0:
-                    z0 = ray1.bpt.c3
-                    y0 = ray1.bpt.c2
-                    zr = ray2.bpt.c3
-                    yr = ray2.bpt.c2
-                    vz = ray1.direct.pt.c3
-                    vy = ray1.direct.pt.c2
-                    uz = ray2.direct.pt.c3
-                    uy = ray2.direct.pt.c2
-                    t1 = ((z0 - zr) * vy / vz + yr - y0) / (
-                            uy - uz * vy / vz)
+                elif ray1.dir.pt.c3 != 0:
+                    z0 = ray1.pt.c3
+                    y0 = ray1.pt.c2
+                    zr = ray2.pt.c3
+                    yr = ray2.pt.c2
+                    vz = ray1.dir.pt.c3
+                    vy = ray1.dir.pt.c2
+                    uz = ray2.dir.pt.c3
+                    uy = ray2.dir.pt.c2
+
+                    t1 = ((z0 - zr) * vy / vz + yr - y0) / (uy - uz * vy / vz)
                     s1 = (t0 * uz + z0 - zr) / vz
                     return t1, s1
 
             if abs(begin_pr1) > self.du:
-                if self.u * ray.direct == 0:
-                    return
+                if self.u * ray.dir == 0: return None
 
                 sign = 1 if begin_pr1 > 0 else -1
-                t0, s0 = find_point(
-                    Ray(sign * self.du * self.u.pt + self.pos,
-                        self.dv * self.v), ray)
+                t0, s0 = find_point(Ray(sign * self.du * self.u.point + self.pos, self.dv * self.v), ray)
+
                 if s0 >= 0 and abs(t0) <= 1:
-                    return s0 * ray.direct.len()
+                    return s0 * ray.dir.len()
 
             elif abs(begin_pr2) > self.dv:
-                if self.v * ray.direct == 0:
-                    return
+                if self.v * ray.dir == 0: return None
 
                 sign = 1 if begin_pr2 > 0 else -1
+                t0, s0 = find_point(Ray(sign * self.dv * self.v.point + self.pos, self.du * self.u), ray)
 
-                t0, s0 = find_point(
-                    Ray(sign * self.dv * self.v.pt + self.pos,
-                        self.du * self.u), ray)
                 if s0 >= 0 and abs(t0) <= 1:
-                    return s0 * ray.direct.len()
+                    return s0 * ray.dir.len()
+    def nearest_point(self, *pts: Point) -> Point:
 
-    def nearest_point(self, *pts: Point):
-        self.upd()
-        dist_min = 2 ** 63 - 1
-        pt_min = Vector.vs.nullpoint
-        dist = 0
+        self._update()
+        r_min = sys.maxsize
+        min_pt = Vector.vs.nullpt
+        r = 0
 
         for pt in pts:
-            rad_vec = Vector(pt - self.pos)
+            r_begin = Vector(pt - self.pos)
+            if r_begin.len() == 0:
+                return pt
 
-            if rad_vec.len() == 0: return pt
-
-            proj1 = rad_vec * self.rotation / rad_vec.len()
-            proj2 = rad_vec * self.u * self.du / rad_vec.len()
-            proj3 = rad_vec * self.v * self.dv / rad_vec.len()
-
+            projection1 = r_begin * self.rot / r_begin.len()
+            projection2 = r_begin * self.u * self.du / r_begin.len()
+            projection3 = r_begin * self.v * self.dv / r_begin.len()
             sign = lambda x: 1 if x > 0 else -1
 
-            if abs(proj2) <= 1 and abs(proj3) <= 1:
-                dist = proj1 * self.rotation.len()
+            if abs(projection2) <= 1 and abs(projection3) <= 1: r = projection1 * self.rot.len()
 
-            elif abs(proj2) > 1 and abs(proj3) > 1:
-                new_pr2 = proj2 - sign(proj2)
-                new_pr3 = proj3 - sign(proj3)
+            elif abs(projection2) > 1 and abs(projection3) > 1:
+                proj2 = projection2 - sign(projection2)
+                proj3 = projection3 - sign(projection3)
+                r = self.rot * -projection1 + self.u * proj2 + self.v * proj3 + Vector(pt)
+                r = r.len()
 
-                dist = self.rotation * -proj1 + self.u * new_pr2 + self.v * new_pr3 + Vector(pt)
-                dist = dist.len()
+            elif abs(projection2) > 1:
+                proj2 = projection2 - sign(projection2)
+                r = self.rot * -projection1 + self.u * proj2 + Vector(pt)
+                r = r.len()
 
-            elif abs(proj2) > 1:
-                new_pr2 = proj2 - sign(proj2)
+            elif abs(projection3) > 1:
+                proj3 = projection3 - sign(projection3)
+                r = self.rot * -projection1 + self.v * proj3 + Vector(pt)
+                r = r.len()
 
-                dist = self.rotation * -proj1 + self.u * new_pr2 + Vector(pt)
-                dist = dist.len()
+            if r < r_min:
+                r_min = r
+                min_pt = pt
 
-            elif abs(proj3) > 1:
-                new_pr3 = proj3 - sign(proj3)
-
-                dist = self.rotation * -proj1 + self.v * new_pr3 + Vector(pt)
-                dist = dist.len()
-
-            if dist < dist_min:
-                dist_min = dist
-                pt_min = pt
-
-        return pt_min
+        return min_pt
 
 
-# =================================================================================================== #
+# ==================================================================================================================== #
 class Sphere(Object):
-
     def __init__(self, pos: Point, rotation: Vector, radius):
-        self.rd = radius
-        self.pos = pos
-        self.rotation = rotation.norm() * self.rd
-        self.param = ParametersSphere(self.pos, self.rotation, radius)
+        super().__init__(pos, rotation)
+        self.pr = Sphere_pr(self.pos, self.rot.norm() * radius, radius)
 
-    def upd(self):
-        self.pos = self.param.pos
-        self.rotation = self.param.rotation
-        self.rd = self.param.rd
+    def _update(self):
+        self.pos = self.pr.pos
+        self.rot = self.pr.rot
+        self.r = self.pr.r
 
-    def contains(self, pt):
-        self.upd()
-        return self.pos.dist(pt) - self.rd <= 1e-6
-        #return pt.c1 ** 2 + pt.c2 ** 2 + pt.c3 ** 2 <= self.rd
+    def contains(self, pt: Point, eps=1e-6) -> bool:
+        self._update()
+        return self.pos.dist(pt) - self.r <= eps
 
-    def intersect(self, ray: Ray): # returns float
-        self.upd()
+    def intersect(self, ray: Ray) -> float or None:
 
-        a = ray.direct * ray.direct
-        b = 2 * ray.direct * Vector(ray.bpt - self.pos)
-        c = Vector(self.pos) * Vector(self.pos) + \
-            Vector(ray.bpt) * Vector(ray.bpt) \
-            - 2 * Vector(self.pos) * Vector(ray.bpt) - self.rd ** 2
+        self._update()
+        a = ray.dir * ray.dir
+        b = 2 * ray.dir * Vector(ray.pt - self.pos)
+        c = Vector(self.pos) * Vector(self.pos) + Vector(ray.pt) * Vector(ray.pt) - 2 * Vector(self.pos) * Vector(ray.pt) - self.r ** 2
 
         d = b ** 2 - 4 * a * c
         if d > 0:
             t1 = (-b + math.sqrt(d)) / (2 * a)
             t2 = (-b - math.sqrt(d)) / (2 * a)
-            # Смотрим пересечения с поверхностью сферы
+
             if t2 < 0 <= t1 or 0 < t1 <= t2:
-                return t1 * ray.direct.len()
+                return t1 * ray.dir.len()
+
             elif t1 < 0 <= t2 or 0 < t2 <= t1:
-                return t2 * ray.direct.len()
+                return t2 * ray.dir.len()
 
         elif d == 0:
             t0 = -b / (2 * a)
-            if t0 >= 0:
-                return t0 * ray.direct.len()
+            if t0 >= 0: return t0 * ray.dir.len()
 
-
-    def nearest_point(self, *pts: Point):
-        dist_min = 2 ** 63 - 1
-        pt_min = Vector.vs.nullpoint
+    def nearest_point(self, *pts: Point) -> Point:
+        self._update()
+        r_min = sys.maxsize
+        min_pt = Vector.vs.nullpt
 
         for pt in pts:
-            dist = self.pos.dist(pt)
+            r = self.pos.dist(pt)
+            if r == 0: return pt
 
-            if dist == 0:
-                return pt
+            if r < r_min:
+                r_min = r
+                min_pt = pt
 
-            if dist < dist_min:
-                dist_min = dist
-                pt_min = pt
-
-        return pt_min
+        return min_pt
 
 
-# =================================================================================================== #
+# ==================================================================================================================== #
 class Cube(Object):
 
-    def __init__(self, pos: Point, rotation: Vector):
-        self.rotation = rotation
-        self.pos = pos
-        self.limit = self.rotation.len()
+    def __init__(self, pos: Point, rotation: Vector, size: float):
+        super().__init__(pos, rotation)
+        self.limit = size / 2
+        self.rot = rotation.norm() * self.limit
 
-        if abs(self.rotation.pt.c1) < abs(self.rotation.pt.c2):
-            x_dir = Vector.vs.basis1
-        else: x_dir = Vector.vs.basis1
+        x_dir = Vector.vs.basis[0]
+        if self.rot.point == x_dir.pt or self.rot.point == -1 * x_dir.pt:
+            x_dir = Vector.vs.basis[1]
 
-        self.rot2 = (self.rotation ^ x_dir).norm()
-        self.rot3 = (self.rot2 ^ x_dir).norm()
+        self.rot2 = (x_dir ^ self.rot).norm() * self.limit
+        self.rot3 = (self.rot2 ^ self.rot).norm() * self.limit
+
         self.edges = []
+        for v in self.rot, self.rot2, self.rot3:
+            self.edges.append(BoundedPlane(v.point + self.pos, v, du=self.limit, dv=self.limit))
+            self.edges.append(BoundedPlane(-1 * v.point + self.pos, -1 * v, du=self.limit, dv=self.limit))
 
-        for vec in self.rotation, self.rot2, self.rot3:
-            self.edges.append(BoundedPlane(vec.pt + self.pos, vec, self.limit, self.limit))
-            self.edges.append(BoundedPlane(-vec.pt - self.pos, -vec, self.limit, self.limit))
+        self.pr = Cube_pr(self.pos, self.limit,
+                             [self.rot, self.rot2, self.rot3],
+                             self.edges)
 
-        self.param = ParametersCube(self.pos, self.limit, [self.rotation, self.rot2, self.rot3], self.edges)
+    def _update(self):
+        self.pos = self.pr.pos
+        self.rot = self.pr.rot
+        self.rot2 = self.pr.rot2
+        self.rot3 = self.pr.rot3
+        self.limit = self.pr.limit
+        self.edges = self.pr.edges
 
-    def upd(self):
-        self.pos = self.param.pos
-        self.rotation = self.param.rotation
-        self.rot2 = self.param.rot2
-        self.rot3 = self.param.rot3
-        self.limit = self.param.limit
-        self.edges = self.param.edges
+    def contains(self, pt: Point, eps=1e-6) -> bool:
+        self._update()
+        v_tmp = Vector(pt - self.pos)
+        if v_tmp.len() == 0: return True
 
-    def contains(self, pt: Point):
-        self.upd()
-        rad_vec = Vector(pt - self.pos)
+        rot1_pr = self.rot * v_tmp / v_tmp.len()
+        rot2_pr = self.rot2 * v_tmp / v_tmp.len()
+        rot3_pr = self.rot3 * v_tmp / v_tmp.len()
+        return all(abs(abs(pr) - 1) <= eps for pr in (rot1_pr, rot2_pr, rot3_pr))
 
-        if rad_vec.len() == 0: return True
+    def intersect(self, ray: Ray, eps=1e-6) -> float or None:
+        self._update()
 
-        rot1_proj = self.rotation * rad_vec / rad_vec.len()
-        rot2_proj = self.rot2 * rad_vec / rad_vec.len()
-        rot3_proj = self.rot3 * rad_vec / rad_vec.len()
-
-        return all(abs(abs(pr) - 1) <= 1e-6 for pr in (rot1_proj, rot2_proj, rot3_proj))
-
-    def intersect(self, ray: Ray):
-        self.upd()
-
-        int_pts = []
+        pts = []
         for edge in self.edges:
             r = edge.intersect(ray)
-            if r is not None:
-                int_pts.append(r)
+            if r is not None: pts.append(r)
 
-        if len(int_pts):
-            return min(int_pts)
+        if len(pts): return min(pts)
 
-    def nearest_point(self, *pts: Point):
-        self.upd()
-
-        r_min = 2 ** 63 - 1
-        min_pt = Vector.vs.nullpoint
+    def nearest_point(self, *pts: Point) -> Point:
+        r_min = sys.maxsize
+        min_pt = Vector.vs.nullpt
         r = 0
+
         nearest = [edge.nearest_point(*pts) for edge in self.edges]
         print(*nearest)
 
         for i, near_pt in enumerate(nearest):
             r_begin = Vector(near_pt - self.edges[i].pos)
-            # Если начало вектора совпадает с центром плоскости
-            if r_begin.len() == 0:
-                return near_pt
 
-            projection1 = r_begin * self.edges[i].rotation / r_begin.len()
-            projection2 = r_begin * self.edges[i].u * self.edges[i].du \
-                          / r_begin.len()
-            projection3 = r_begin * self.edges[i].v * self.edges[i].dv \
-                          / r_begin.len()
+            if r_begin.len() == 0: return near_pt
 
+            projection1 = r_begin * self.edges[i].rot / r_begin.len()
+            projection2 = r_begin * self.edges[i].u * self.edges[i].du / r_begin.len()
+            projection3 = r_begin * self.edges[i].v * self.edges[i].dv / r_begin.len()
             sign = lambda x: 1 if x > 0 else -1
+
             if abs(projection2) <= 1 and abs(projection3) <= 1:
-                r = projection1 * self.edges[i].rotation.len()
+                r = projection1 * self.edges[i].rot.len()
 
             elif abs(projection2) > 1 and abs(projection3) > 1:
                 proj2 = projection2 - sign(projection2)
                 proj3 = projection3 - sign(projection3)
-
-                r = self.edges[i].rotation * -projection1 \
-                    + self.edges[i].u * proj2 \
-                    + self.edges[i].v * proj3 + Vector(near_pt)
+                r = self.edges[i].rot * -projection1 + self.edges[i].u * proj2 + self.edges[i].v * proj3 + Vector(near_pt)
                 r = r.len()
 
             elif abs(projection2) > 1:
                 proj2 = projection2 - sign(projection2)
-                r = self.edges[i].rotation * -projection1 \
-                    + self.edges[i].u * proj2 + Vector(near_pt)
+                r = self.edges[i].rot * -projection1 + self.edges[i].u * proj2 + Vector(near_pt)
                 r = r.len()
 
             elif abs(projection3) > 1:
                 proj3 = projection3 - sign(projection3)
-                r = self.edges[i].rotation * -projection1 \
-                    + self.edges[i].v * proj3 + Vector(near_pt)
+                r = self.edges[i].rot * -projection1 + self.edges[i].v * proj3 + Vector(near_pt)
                 r = r.len()
 
             if r < r_min:
@@ -889,63 +691,92 @@ class Cube(Object):
         return min_pt
 
 
-# =================================================================================================== #
-#symbols = " .:!/r(l1Z4H9W8$@"
+# symbols = (' ', '.', ',', '-', '+', '=', '*', '#', '%', '&')
 symbols = " .-:+=*ZH&#$%@W"
-#(' ', '.', ',', '-', '+', '=', '*', '#', '%', '&', '$', '@')
-#symbols = (' ', '$', '&', '%', '#', '*', '=', '+', '-', ',', '.', '@')
-#symbols = (' ', '.', ',', '-', '+', '=', '*', '#', '%', '&')
 
+
+# ==================================================================================================================== #
 class Canvas:
 
-    def __init__(self, map_: Map, cam: Camera):
-        self.map = map_
-        self.cam = cam
+    def __init__(self, objmap: Map, camera: Camera):
+        self.map = objmap
+        self.cam = camera
 
     def update(self):
-        rays = self.cam.sendrays()
+        rays = self.cam.send_rays()
         dist_matrix = []
 
-        for i in range(self.cam.hight): # width
+        for i in range(self.cam.hight):
             dist_matrix.append([])
+            for j in range(self.cam.width):
 
-            for j in range(self.cam.width): # hight
-                #print(len(rays[i]))
                 distances = rays[i][j].intersect(self.map)
-
-                if all(d is None or d > self.cam.draw_distance
-                       for d in distances):
+                if all(d is None or d > self.cam.draw_dist for d in distances):
                     dist_matrix[i].append(None)
 
-                else:
-                    dist_matrix[i].append(
-                        min(filter(lambda x: x is not None, distances)))
+                else: dist_matrix[i].append(min(filter(lambda x: x is not None, distances)))
 
         return dist_matrix
 
 
-# =================================================================================================== #
+# ==================================================================================================================== #
 class Console(Canvas):
 
     def draw(self):
         dist_matrix = self.update()
-        output = ""
+        output= ''
 
         for y in range(len(dist_matrix)):
 
             for x in range(len(dist_matrix[y])):
                 if dist_matrix[y][x] is None:
-                    #print(symbols[0], end='')
                     output += symbols[0]
                     continue
 
-                gradient = dist_matrix[y][x] / self.cam.draw_distance * (len(symbols) - 1)
-                #print(dist_matrix[y][x], gradient)
-                #print(symbols[len(symbols) - round(gradient) - 1], end='')
+                gradient = dist_matrix[y][x] / self.cam.draw_dist * (len(symbols) - 1)
                 output += symbols[len(symbols) - round(gradient) - 1]
 
-            output += "\n"
+            output += '\n'
 
         print(output)
 
-# =================================================================================================== #
+
+# ==================================================================================================================== #
+class Events:
+    data = {}
+
+    @classmethod
+    def add(cls, event: str):
+        cls.data[event] = []
+
+    @classmethod
+    def handle(cls, event: str, func: type(add)):
+        cls.data[event].append(func)
+
+    @classmethod
+    def remove(cls, event: str, func: type(add)):
+        for i in range(len(cls.data[event])):
+            if cls.data[event][i] is func:
+                del cls.data[event][i]
+                break
+
+    @classmethod
+    def __getitem__(cls, item):
+        return cls.data[item]
+
+    @classmethod
+    def __iter__(cls):
+        return iter(cls.data.keys())
+
+    @classmethod
+    def trigger(cls, event, *args):
+        try:
+            for i in range(len(cls.data[event])):
+                called = cls.data[event][i](*args)
+                if called is not None:
+                    return called
+        except Exception:
+            print("ERROR")
+            print(cls.data[event])
+
+# ==================================================================================================================== #
