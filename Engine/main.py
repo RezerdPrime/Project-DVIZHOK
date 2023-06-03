@@ -116,30 +116,42 @@ map1.append(b, b1, b2, b3)
 cons = Console(map1, camer)
 cons.draw()
 
+launch(cons)
 
-char = '0'
+# keyboard.add_hotkey("w", lambda: Events.trigger('w', cam))
+# input()
+# print(pag.size())
+#
+# pag.moveTo(1, 1, 1)
+# pag.moveTo(100, 500, 1)
+# pag.moveTo(500, 500, 1)
+# pag.moveTo(1000, 650, 1)
+# pag.moveTo(1900, 10, 1)
+# pag.click()
+
+'''char = '0'
 while char != 'kill ':
     char = input() + ' '
 
     if char[0] == 'w':
-        cons.cam = forward(camer)
-        print(cons.cam.pos, cons.cam.screen.v, cons.cam.screen.u)
+        cons.cam = move_forward(camer)
+        #print(cons.cam.pos, cons.cam.screen.v, cons.cam.screen.u)
         cons.draw()
 
     if char[0] == 's':
-        cons.cam = backward(camer)
-        print(cons.cam.pos, cons.cam.screen.v, cons.cam.screen.u)
+        cons.cam = move_backward(camer)
+        #print(cons.cam.pos, cons.cam.screen.v, cons.cam.screen.u)
         cons.draw()
 
     if char[0] == 'd':
-        cons.cam = right(camer)
-        print(cons.cam.pos, cons.cam.screen.v, cons.cam.screen.u)
+        cons.cam = move_right(camer)
+        #print(cons.cam.pos, cons.cam.screen.v, cons.cam.screen.u)
         cons.draw()
 
     if char[0] == 'a':
-        cons.cam = left(camer)
-        print(cons.cam.pos, cons.cam.screen.v, cons.cam.screen.u)
-        cons.draw()
+        cons.cam = move_left(camer)
+        #print(cons.cam.pos, cons.cam.screen.v, cons.cam.screen.u)
+        cons.draw()'''
 
 '''cons.cam.pos = cons.cam.pos + Point(0,0,-0.5)
 cons.draw()'''
