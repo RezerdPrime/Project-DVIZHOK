@@ -51,6 +51,13 @@ def move_from_viewpoint(cam: Camera, speed=1):
     cam.pos = cam.pos - cam.look_dir.pt * speed
     return cam
 
+def draw_dist_up(cam: Camera, val=5):
+    cam.draw_dist += val
+    return cam
+
+def draw_dist_down(cam: Camera, val=5):
+    return draw_dist_up(cam, -val)
+
 
 Events.add("w")
 Events.add("s")
@@ -65,11 +72,15 @@ Events.handle('d', move_right)
 class Spectator(Camera):
     Events.add('shift + w')
     Events.add('shift + s')
+    Events.add('shift + z')
+    Events.add('shift + x')
     Events.handle('shift + w', move_to_viewpoint)
     Events.handle('shift + s', move_from_viewpoint)
+    Events.handle('shift + z', draw_dist_up)
+    Events.handle('shift + x', draw_dist_down)
 
 #class Player(Camera):
-def launch(console: Console, camera_type: str = 'spectator', sensitivity=1, move_speed=1):
+def launch(console: Console, camera_type: str = 'spectator', sensitivity=2, move_speed=1):
 
     #global exit_cond
     exit_cond = True
@@ -95,10 +106,12 @@ def launch(console: Console, camera_type: str = 'spectator', sensitivity=1, move
         keyboard.add_hotkey('d', lambda: act('d'))
         keyboard.add_hotkey('shift+w', lambda: act('shift + w'))
         keyboard.add_hotkey('shift+s', lambda: act('shift + s'))
+        keyboard.add_hotkey('shift+z', lambda: act('shift + z'))
+        keyboard.add_hotkey('shift+x', lambda: act('shift + x'))
 
         curr_pos = pag.position()
-        #pag.moveTo(pag.size()[0] // 1, pag.size()[1] // 2)
-        pag.moveTo(pag.size()[0] * 0.1, pag.size()[1] * 0.9)
+        pag.moveTo(pag.size()[0] // 2, pag.size()[1] // 2)
+        #pag.moveTo(pag.size()[0] * 0.1, pag.size()[1] * 0.9)
         pag.click()
 
         while exit_cond:
@@ -107,7 +120,7 @@ def launch(console: Console, camera_type: str = 'spectator', sensitivity=1, move
 
             if new_pos != curr_pos:
                 something_happened = True
-                difference = [(new_pos[0] - curr_pos[0]) * sensitivity, (new_pos[1] - curr_pos[1]) * sensitivity]
+                difference = [(new_pos[0] - curr_pos[0]) * sensitivity, (new_pos[1] - curr_pos[1]) * sensitivity / 3]
                 difference[0] /= (pag.size()[0] // 2)
                 difference[1] /= (pag.size()[1] // 2)
                 t, s = difference
@@ -122,6 +135,10 @@ def launch(console: Console, camera_type: str = 'spectator', sensitivity=1, move
 
             if something_happened:
                 console.draw()
+
+            if new_pos[0] in (0, 1, 1919, 1920) or new_pos[1] in (0, 1, 1079, 1080):
+                pag.moveTo(pag.size()[0] // 2, pag.size()[1] // 2)
+                curr_pos = pag.position()
 
     else:
         # Ich weiss nicht, wie man.
