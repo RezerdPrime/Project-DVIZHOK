@@ -238,7 +238,7 @@ class Parameters:
 
 
 # ==================================================================================================================== #
-class BoundedPlane_pr(Parameters):
+class ParametersBoundedPlane(Parameters):
     def __init__(self, pos: Point, rotation: Vector, u, v, du, dv):
 
         super().__init__(pos, rotation)
@@ -258,7 +258,7 @@ class BoundedPlane_pr(Parameters):
 
 
 # ==================================================================================================================== #
-class Sphere_pr(Parameters):
+class ParametersSphere(Parameters):
     def __init__(self, pos: Point, rotation: Vector, radius):
         super().__init__(pos, rotation)
         self.r = radius
@@ -268,7 +268,7 @@ class Sphere_pr(Parameters):
 
 
 # ==================================================================================================================== #
-class Cube_pr(Parameters):
+class ParametersCube(Parameters):
     def __init__(self, pos: Point, limit, rotations: [Vector], edges: '[BoundedPlane]'):
         super().__init__(pos, rotations[0])
         self.rot2, self.rot3 = rotations[1:]
@@ -372,7 +372,7 @@ class BoundedPlane(Plane):
         self.u = (self.rot ^ y_dir).norm()
         self.v = (self.rot ^ self.u).norm()
 
-        self.pr = BoundedPlane_pr(self.pos, self.rot, self.u, self.v, self.du, self.dv)
+        self.pr = ParametersBoundedPlane(self.pos, self.rot, self.u, self.v, self.du, self.dv)
 
     def _update(self):
         self.pos = self.pr.pos
@@ -546,7 +546,7 @@ class BoundedPlane(Plane):
 class Sphere(Object):
     def __init__(self, pos: Point, rotation: Vector, radius):
         super().__init__(pos, rotation)
-        self.pr = Sphere_pr(self.pos, self.rot.norm() * radius, radius)
+        self.pr = ParametersSphere(self.pos, self.rot.norm() * radius, radius)
 
     def _update(self):
         self.pos = self.pr.pos
@@ -615,9 +615,9 @@ class Cube(Object):
             self.edges.append(BoundedPlane(v.point + self.pos, v, du=self.limit, dv=self.limit))
             self.edges.append(BoundedPlane(-1 * v.point + self.pos, -1 * v, du=self.limit, dv=self.limit))
 
-        self.pr = Cube_pr(self.pos, self.limit,
-                             [self.rot, self.rot2, self.rot3],
-                             self.edges)
+        self.pr = ParametersCube(self.pos, self.limit,
+                                [self.rot, self.rot2, self.rot3],
+                                 self.edges)
 
     def _update(self):
         self.pos = self.pr.pos
