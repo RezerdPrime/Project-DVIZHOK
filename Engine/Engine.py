@@ -604,7 +604,7 @@ class Cube(Object):
         self.rot = rotation.norm() * self.limit
 
         x_dir = Vector.vs.basis[0]
-        if self.rot.point == x_dir.pt or self.rot.point == -1 * x_dir.pt:
+        if self.rot.pt == x_dir.pt or self.rot.pt == -1 * x_dir.pt:
             x_dir = Vector.vs.basis[1]
 
         self.rot2 = (x_dir ^ self.rot).norm() * self.limit
@@ -612,8 +612,8 @@ class Cube(Object):
 
         self.edges = []
         for v in self.rot, self.rot2, self.rot3:
-            self.edges.append(BoundedPlane(v.point + self.pos, v, du=self.limit, dv=self.limit))
-            self.edges.append(BoundedPlane(-1 * v.point + self.pos, -1 * v, du=self.limit, dv=self.limit))
+            self.edges.append(BoundedPlane(v.pt + self.pos, v, du=self.limit, dv=self.limit))
+            self.edges.append(BoundedPlane(-1 * v.pt + self.pos, -1 * v, du=self.limit, dv=self.limit))
 
         self.pr = ParametersCube(self.pos, self.limit,
                                 [self.rot, self.rot2, self.rot3],
